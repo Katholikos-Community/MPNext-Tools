@@ -30,14 +30,20 @@ export function EditorExportDialog({ open, onOpenChange }: EditorExportDialogPro
 
   useEffect(() => {
     if (open) {
+      // Sync editor's current MJML/project data into dialog state when opened.
       const mjml = editor.getHtml();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMjmlSource(mjml);
 
       const projectData = editor.getProjectData();
+       
       setJsonState(JSON.stringify(projectData, null, 2));
 
+       
       setHtmlOutput('');
+       
       setCompileErrors([]);
+       
       setCopiedSource(null);
     }
   }, [open, editor]);

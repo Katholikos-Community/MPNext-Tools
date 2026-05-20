@@ -49,7 +49,10 @@ export function DevPanel({ params }: DevPanelProps) {
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    // SSR hydration gate + read persisted open state from localStorage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
+     
     setIsOpen(readOpenState());
   }, []);
 

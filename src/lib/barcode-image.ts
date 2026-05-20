@@ -3,7 +3,6 @@
  * BMP is used because it has a trivial format (no compression) and Word supports it natively.
  */
 
-import type { BarState } from './imb-encoder';
 import type { PostnetBar } from './postnet-encoder';
 
 const IMB_DIMS: Record<string, { topOffset: number; barHeight: number }> = {

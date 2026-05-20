@@ -50,6 +50,7 @@ export function UserProvider({ children }: UserProviderProps) {
 
   useEffect(() => {
     if (!isPending && userGuid) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadUserProfile();
     } else if (!isPending && !session) {
       setUserProfile(null);

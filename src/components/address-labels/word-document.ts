@@ -7,7 +7,6 @@ import {
   TableCell,
   WidthType,
   ImageRun,
-  AlignmentType,
   BorderStyle,
   convertInchesToTwip,
   SectionType,
@@ -32,7 +31,6 @@ function buildLabelCell(
   stock: LabelStockConfig
 ): TableCell {
   const cellWidthTwips = convertInchesToTwip(ptToIn(stock.labelWidth));
-  const cellHeightTwips = convertInchesToTwip(ptToIn(stock.labelHeight));
 
   if (!label) {
     // Empty cell (for start position offset)

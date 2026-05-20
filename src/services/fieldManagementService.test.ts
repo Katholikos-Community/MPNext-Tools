@@ -17,7 +17,7 @@ import { FieldManagementService } from './fieldManagementService';
 describe('FieldManagementService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (FieldManagementService as any).instance = undefined;
   });
 

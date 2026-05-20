@@ -71,7 +71,7 @@ export function AddressLabels({ params }: AddressLabelsProps) {
   }, []);
 
   // Only re-fetch when filtering-relevant config changes (mode, barcode toggle),
-  // NOT when layout-only config changes (stock, start position, barcode format)
+  // NOT when layout-only config changes (stock, start position, barcode format).
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -84,9 +84,11 @@ export function AddressLabels({ params }: AddressLabelsProps) {
     } finally {
       setIsLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, config.addressMode, config.includeMissingBarcodes]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, [loadData]);
 

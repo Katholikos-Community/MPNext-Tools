@@ -46,7 +46,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ToolParams, isNewRecord } from "@/lib/tool-params";
+import { ToolParams } from "@/lib/tool-params";
 import {
   emptyHousehold,
   emptyMember,
@@ -88,7 +88,6 @@ export function AddEditFamily({ params, initialContactId }: AddEditFamilyProps) 
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [addressTab, setAddressTab] = useState<"main" | "alt">("main");
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
-  const isNew = isNewRecord(params);
 
   const isDirty = useMemo(
     () => household !== null && JSON.stringify(household) !== originalSnapshot,
@@ -110,14 +109,6 @@ export function AddEditFamily({ params, initialContactId }: AddEditFamilyProps) 
     };
   }, []);
 
-  useEffect(() => {
-    if (!defaults) return;
-    if (initialContactId && initialContactId > 0) {
-      loadHousehold(initialContactId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialContactId, defaults]);
-
   const loadHousehold = useCallback(async (contactId: number) => {
     const result = await fetchHousehold(contactId);
     if (result.success) {
@@ -128,6 +119,14 @@ export function AddEditFamily({ params, initialContactId }: AddEditFamilyProps) 
       setLoadError(result.error);
     }
   }, []);
+
+  useEffect(() => {
+    if (!defaults) return;
+    if (initialContactId && initialContactId > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadHousehold(initialContactId);
+    }
+  }, [initialContactId, defaults, loadHousehold]);
 
   const startNewFamily = useCallback(
     (lastName: string) => {
@@ -1026,6 +1025,8 @@ function AddressLine1Autocomplete({
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (value.trim().length < 3) {
+      // Clear predictions on short input (debounced autocomplete).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPredictions([]);
       return;
     }

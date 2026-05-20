@@ -15,7 +15,7 @@ describe('UserService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset singleton instance between tests
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (UserService as any).instance = undefined;
   });
 

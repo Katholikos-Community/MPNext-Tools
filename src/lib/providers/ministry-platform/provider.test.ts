@@ -107,7 +107,7 @@ describe('MinistryPlatformProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset singleton
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (MinistryPlatformProvider as any).instance = undefined;
   });
 

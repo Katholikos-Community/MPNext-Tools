@@ -18,7 +18,10 @@ export function UserToolsPanel({ refreshKey = 0, onAuthorizationChange }: UserTo
 
   useEffect(() => {
     let cancelled = false;
+    // Loading/error flags before async fetch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
+     
     setError(null);
     (async () => {
       try {

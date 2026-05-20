@@ -29,7 +29,10 @@ export function ContactRecordsPanel({ params, selectionRecordIds }: ContactRecor
 
     const recordIds = hasSingleRecord ? [params.recordID!] : selectionRecordIds!;
 
+    // Loading/error flags before async fetch — pattern not avoidable without a reducer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
+     
     setError(null);
 
     async function fetchContacts() {

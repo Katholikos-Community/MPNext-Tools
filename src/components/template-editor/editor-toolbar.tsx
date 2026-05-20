@@ -61,6 +61,8 @@ export function EditorToolbar({ onClose }: EditorToolbarProps) {
   }, [editor]);
 
   useEffect(() => {
+    // Sync undo/redo from GrapesJS UndoManager and subscribe to its change events.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     updateUndoRedo();
 
     const onUpdate = () => updateUndoRedo();
