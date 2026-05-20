@@ -44,4 +44,5 @@ export interface FieldOrderPayload {
 export interface FieldOrderEditorHandle {
   getSavePayload: () => FieldOrderPayload[];
   moveHiddenToOther: () => void;
+  hideAllSeparators: () => void;
 }

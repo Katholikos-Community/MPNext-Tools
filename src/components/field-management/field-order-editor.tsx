@@ -42,7 +42,8 @@ export const FieldOrderEditor = forwardRef<FieldOrderEditorHandle, FieldOrderEdi
     useImperativeHandle(ref, () => ({
       getSavePayload: state.buildSavePayload,
       moveHiddenToOther: state.moveHiddenToOther,
-    }), [state.buildSavePayload, state.moveHiddenToOther]);
+      hideAllSeparators: state.hideAllSeparators,
+    }), [state.buildSavePayload, state.moveHiddenToOther, state.hideAllSeparators]);
 
     const totalFields = Object.values(state.groupedFields).reduce(
       (sum, ids) => sum + ids.length,
