@@ -8,7 +8,7 @@ import { FieldOrderEditor } from "@/components/field-management/field-order-edit
 import type { PageListItem, PageFieldData, FieldOrderEditorHandle } from "@/components/field-management";
 import { fetchPageFieldData, savePageFieldOrder } from "@/components/field-management/actions";
 import { ToolParams } from "@/lib/tool-params";
-import { ArrowLeft, Table, Loader2, EyeOff } from "lucide-react";
+import { ArrowLeft, Table, Loader2, EyeOff, SeparatorHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -73,6 +73,10 @@ export function FieldManagement({ params }: FieldManagementProps) {
     editorRef.current?.moveHiddenToOther();
   };
 
+  const handleHideAllSeparators = () => {
+    editorRef.current?.hideAllSeparators();
+  };
+
   const handleClose = () => {
     router.back();
   };
@@ -97,15 +101,26 @@ export function FieldManagement({ params }: FieldManagementProps) {
       hideFooter={step === 1 || isLoadingFields || !fieldData}
       footerExtra={
         step === 2 && fieldData ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMoveHiddenToOther}
-            disabled={isSaving}
-          >
-            <EyeOff className="w-4 h-4 mr-1" />
-            Move Hidden to Other
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleHideAllSeparators}
+              disabled={isSaving}
+            >
+              <SeparatorHorizontal className="w-4 h-4 mr-1" />
+              Hide All Separators
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleMoveHiddenToOther}
+              disabled={isSaving}
+            >
+              <EyeOff className="w-4 h-4 mr-1" />
+              Move Hidden to Other
+            </Button>
+          </div>
         ) : undefined
       }
     >

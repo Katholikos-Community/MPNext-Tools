@@ -1,6 +1,15 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+}
+
 // Mock environment variables for tests
 vi.stubEnv('MINISTRY_PLATFORM_BASE_URL', 'https://test-mp.example.com');
 vi.stubEnv('MINISTRY_PLATFORM_CLIENT_ID', 'test-client-id');
