@@ -73,6 +73,7 @@ export function DeployToolPanel({ onDeployed }: DeployToolPanelProps = {}) {
 
   // Reset the deploy UI when route changes.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLaunchPage(defaultLaunchPage);
   }, [defaultLaunchPage]);
 

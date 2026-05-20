@@ -20,7 +20,7 @@ import { GroupService } from './groupService';
 describe('GroupService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (GroupService as any).instance = undefined;
   });
 

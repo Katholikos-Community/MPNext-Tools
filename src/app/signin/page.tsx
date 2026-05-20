@@ -57,6 +57,7 @@ function SignInContent() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const startOAuth = useCallback(() => {
     console.log("Redirecting to SignIn API");
     setIsRedirecting(true);

@@ -1,5 +1,4 @@
 import { View } from '@react-pdf/renderer';
-import type { BarState } from '@/lib/imb-encoder';
 
 interface ImbBarcodeProps {
   /** Pre-encoded bar states string (65 chars of T/D/A/F) */

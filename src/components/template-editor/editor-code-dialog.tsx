@@ -29,10 +29,15 @@ export function EditorCodeDialog({ open, onOpenChange }: EditorCodeDialogProps) 
 
   useEffect(() => {
     if (open) {
+      // Sync editor's current MJML into dialog state when opened, reset preview.
       const mjml = editor.getHtml();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMjmlSource(mjml);
+       
       setHtmlPreview('');
+       
       setCompileErrors([]);
+       
       setCopiedSource(null);
     }
   }, [open, editor]);
