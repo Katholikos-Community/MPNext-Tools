@@ -21,7 +21,7 @@ export async function compileMjml(mjmlSource: string): Promise<MjmlCompileResult
 
   const mjml2html = (await import('mjml')).default;
 
-  const result = mjml2html(mjmlSource, {
+  const result = await mjml2html(mjmlSource, {
     validationLevel: 'soft',
     minify: false,
   });
