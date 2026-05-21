@@ -157,6 +157,7 @@ export default MyComponent;            // ❌ Avoid
 9. **Use service classes in server actions** - call services from `src/services/`, not MPHelper directly from components or actions
 10. **Disambiguate ambiguous columns** - when querying tables with FK joins, prefix columns that exist in multiple tables (e.g., `Contacts.Contact_ID` not just `Contact_ID`). Use `FKColumn_TABLE.Column` to traverse foreign keys (e.g., `Contact_ID_TABLE.First_Name`). For multi-level FK traversal, chain with `_TABLE_` underscores and use a dot only before the final field (e.g., `Building_ID_TABLE_Location_ID_TABLE.Congregation_ID`). See **[Services query-patterns](.claude/references/services/query-patterns.md)** for full rules and examples.
 11. **Escape user input in filters** - always escape single quotes: `term.replace(/'/g, "''")`
+12. **Convert all date/time values at the MP boundary** - use `DomainTimezoneService` (never raw `new Date(x).toISOString()`, `` `${date}T00:00:00Z` ``, or `getFullYear()`) when sending or receiving datetime fields, since MP stores wall-clock values in the domain's time zone, not UTC. See **[Date/Time Handling Reference](.claude/references/ministryplatform.datetimehandling.md)**.
 
 ## Validation Best Practices
 
@@ -214,6 +215,7 @@ Agent-facing reference docs are hierarchical under `.claude/references/`. Start 
 - **[GLOSSARY](.claude/references/GLOSSARY.md)** — domain terms (alphabetized)
 - **[DECISIONS](.claude/references/DECISIONS.md)** — architectural decisions (ADRs)
 - **[GOTCHAS](.claude/references/GOTCHAS.md)** — known traps (symptom-first)
+- **[Ministry Platform Date/Time Handling](.claude/references/ministryplatform.datetimehandling.md)** — How to send/receive MP datetimes safely via `DomainTimezoneService`, anti-patterns, Windows↔IANA mapping, and test guidance
 
 ### Domain subfolders
 

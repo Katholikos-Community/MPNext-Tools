@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock MPHelper — use vi.hoisted() per project convention
-const { mockGetTableRecords, mockCreateTableRecords, mockUpdateTableRecords } = vi.hoisted(() => ({
+const { mockGetTableRecords, mockCreateTableRecords, mockUpdateTableRecords, mockGetDomainInfo } = vi.hoisted(() => ({
   mockGetTableRecords: vi.fn(),
   mockCreateTableRecords: vi.fn(),
   mockUpdateTableRecords: vi.fn(),
+  mockGetDomainInfo: vi.fn(),
 }));
 
 vi.mock('@/lib/providers/ministry-platform', () => ({
@@ -12,16 +13,21 @@ vi.mock('@/lib/providers/ministry-platform', () => ({
     getTableRecords = mockGetTableRecords;
     createTableRecords = mockCreateTableRecords;
     updateTableRecords = mockUpdateTableRecords;
+    getDomainInfo = mockGetDomainInfo;
   },
 }));
 
 import { GroupService } from './groupService';
+import { DomainTimezoneService } from './domainTimezoneService';
 
 describe('GroupService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-     
+    mockGetDomainInfo.mockReset();
+    mockGetDomainInfo.mockResolvedValue({ TimeZoneName: 'America/New_York' });
+
     (GroupService as any).instance = undefined;
+    (DomainTimezoneService as any).instance = null;
   });
 
   describe('getInstance', () => {
@@ -351,7 +357,7 @@ describe('GroupService', () => {
         'Groups',
         [expect.objectContaining({
           Group_Name: 'New Group',
-          Start_Date: '2024-03-01T00:00:00Z', // date-only converted to datetime
+          Start_Date: '2024-03-01 00:00:00', // date-only converted to MP-TZ SQL datetime
           End_Date: null,
           Promotion_Date: null,
         })],
@@ -385,8 +391,8 @@ describe('GroupService', () => {
         [expect.objectContaining({
           Group_ID: 100,
           Group_Name: 'Updated Group',
-          Start_Date: '2024-06-01T00:00:00Z',
-          End_Date: '2024-12-31T00:00:00Z',
+          Start_Date: '2024-06-01 00:00:00',
+          End_Date: '2024-12-31 00:00:00',
           Promotion_Date: null,
         })],
         {
@@ -396,6 +402,24 @@ describe('GroupService', () => {
         },
       );
       expect(result).toEqual({ Group_ID: 100, Group_Name: 'Updated Group' });
+    });
+  });
+
+  describe('date round-trip regression', () => {
+    it('round-tripping the same edit does not shift Start_Date', async () => {
+      // Reproduces the source-repo Contact_Log bug pattern: editing without
+      // changing the date field must not drift the saved value across
+      // successive saves, regardless of the server's local zone.
+      mockUpdateTableRecords.mockResolvedValue([{ Group_ID: 7, Group_Name: 'X' }]);
+
+      const service = await GroupService.getInstance();
+      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any, 1);
+      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any, 1);
+      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any, 1);
+
+      for (const call of mockUpdateTableRecords.mock.calls) {
+        expect((call[1][0] as { Start_Date: string }).Start_Date).toBe('2026-05-17 00:00:00');
+      }
     });
   });
 
