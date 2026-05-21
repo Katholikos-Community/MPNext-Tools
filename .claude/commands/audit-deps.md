@@ -46,9 +46,13 @@ If the user requests, execute the recommended action plan:
 - Report final status
 
 ## Key Dependencies to Always Check
-- next / next-auth (framework security)
+- next / eslint-config-next (framework security)
 - react / react-dom (core framework)
-- jsonwebtoken / bcryptjs (auth/crypto)
-- drizzle-orm / drizzle-kit (database)
-- Any AWS SDK packages
-- Any packages with known historical vulnerabilities
+- better-auth (auth/session)
+- zod (validation — v4 API differs from v3)
+- @grapesjs/react / grapesjs / grapesjs-mjml / mjml (template editor)
+- docx / docxtemplater / docxtemplater-image-module-free / pizzip (Word merge)
+- openai (LLM client, if used by tools)
+- @react-pdf/renderer (PDF output)
+- vitest / @vitest/coverage-v8 / @vitejs/plugin-react (test runner)
+- typescript (toolchain)
