@@ -137,8 +137,8 @@ The setup wizard will:
 5. Configure Ministry Platform API client credentials
 6. Auto-generate `BETTER_AUTH_SECRET`
 7. Install and update dependencies
-8. Generate Ministry Platform types
-9. Optionally generate the stored procedure reference
+8. Regenerate Ministry Platform types against your MP instance
+9. Generate the stored procedure reference (powers Claude Code suggestions)
 10. Run a production build to verify configuration
 
 When the wizard finishes it prints a reminder pointing to `_INSTALL/ministryplatform-install.sql` so you can deploy the SQL prerequisites to your MP database.
@@ -198,17 +198,27 @@ MINISTRY_PLATFORM_BASE_URL=https://your-instance.ministryplatform.com/ministrypl
 | `NEXT_PUBLIC_APP_NAME` | Application display name. Default: `MPNextApp`. |
 | `NEXT_PUBLIC_PROD_URL` | Production URL used by the Authorized Tools debug panel for path comparison. |
 
-#### 3. Generate Ministry Platform Types
+#### 3. Regenerate Ministry Platform Types
+
+The repo ships with pre-generated models under `src/lib/providers/ministry-platform/models/` so a fresh clone can build immediately. Regenerate them against **your own** MP instance to pick up custom tables, columns, and constraints:
 
 ```bash
 npm run mp:generate:models
 ```
 
-This connects to your Ministry Platform API, fetches all table metadata, and generates:
+This connects to your Ministry Platform API, fetches all table metadata, and regenerates:
 - TypeScript interfaces for each table
 - Zod v4 validation schemas for runtime validation
 - Schema documentation at `.claude/references/ministryplatform.schema.md`
 - Output to `src/lib/providers/ministry-platform/models/`
+
+Run this any time your MP schema changes. The `--clean` flag in `npm run mp:generate:models` removes stale files before regenerating.
+
+Optionally, also refresh the stored procedure reference (used by Claude Code for query suggestions):
+
+```bash
+npm run mp:generate:storedprocs
+```
 
 **Advanced options:**
 ```bash
