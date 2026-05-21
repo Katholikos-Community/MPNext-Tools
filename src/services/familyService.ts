@@ -1,5 +1,6 @@
 import { MPHelper } from "@/lib/providers/ministry-platform";
 import { escapeFilterString, validatePositiveInt, validateColumnName } from "@/lib/validation";
+import { DomainTimezoneService } from "@/services/domainTimezoneService";
 import type {
   ContactSearchResult,
   CountryOption,
@@ -590,6 +591,8 @@ export class FamilyService {
           { partial: true, $userId: userId },
         );
       } else {
+        const tz = DomainTimezoneService.getInstance();
+        const nowMpSql = await tz.toMpSqlDatetime(new Date());
         const created = await this.mp!.createTableRecords<{
           Participant_ID: number;
           Contact_ID: number;
@@ -601,7 +604,7 @@ export class FamilyService {
             {
               Contact_ID: contactId,
               Participant_Type_ID: participantTypeId,
-              Participant_Start_Date: new Date().toISOString(),
+              Participant_Start_Date: nowMpSql,
             } as {
               Participant_ID: number;
               Contact_ID: number;
@@ -704,10 +707,12 @@ export class FamilyService {
       return { donorId: existingDonorId, envelopeNo: finalEnvelopeNo, bumped };
     }
 
+    const tz = DomainTimezoneService.getInstance();
+    const setupDateMpSql = await tz.toMpSqlDatetime(new Date());
     const payload = {
       Contact_ID: contactId,
       Envelope_No: finalEnvelopeNo,
-      Setup_Date: new Date().toISOString(),
+      Setup_Date: setupDateMpSql,
       ...DONOR_DEFAULTS,
     };
     const created = await this.mp!.createTableRecords<{ Donor_ID: number } & typeof payload>(

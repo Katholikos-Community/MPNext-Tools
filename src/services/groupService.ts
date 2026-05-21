@@ -1,5 +1,6 @@
 import { MPHelper } from '@/lib/providers/ministry-platform';
 import { escapeFilterString, validatePositiveInt } from '@/lib/validation';
+import { DomainTimezoneService } from '@/services/domainTimezoneService';
 import type {
   GroupWizardLookups,
   ContactSearchResult,
@@ -19,20 +20,18 @@ export interface GetGroupResult {
   displayNames: GroupWizardDisplayNames;
 }
 
-/** Convert date-only strings (YYYY-MM-DD) to ISO datetime for the MP API */
-function toDatetime(value: string | null | undefined): string | null {
-  if (!value) return null;
-  if (value.includes('T')) return value;
-  return `${value}T00:00:00Z`;
-}
-
-/** Prepare form data for the MP API by converting date fields to datetime */
-function prepareForApi(data: GroupWizardFormData): Record<string, unknown> {
+/** Prepare form data for the MP API by converting date fields to MP-TZ SQL datetime */
+async function prepareForApi(
+  data: GroupWizardFormData,
+): Promise<Record<string, unknown>> {
+  const tz = DomainTimezoneService.getInstance();
+  const convert = async (value: string | null | undefined) =>
+    value ? await tz.toMpSqlDatetime(value) : null;
   return {
     ...data,
-    Start_Date: toDatetime(data.Start_Date),
-    End_Date: toDatetime(data.End_Date),
-    Promotion_Date: toDatetime(data.Promotion_Date),
+    Start_Date: await convert(data.Start_Date),
+    End_Date: await convert(data.End_Date),
+    Promotion_Date: await convert(data.Promotion_Date),
   };
 }
 
@@ -275,7 +274,7 @@ export class GroupService {
     data: GroupWizardFormData,
     userId: number,
   ): Promise<{ Group_ID: number; Group_Name: string }> {
-    const apiData = prepareForApi(data);
+    const apiData = await prepareForApi(data);
     const result = await this.mp!.createTableRecords('Groups', [apiData], {
       $select: 'Group_ID, Group_Name',
       $userId: userId,
@@ -288,7 +287,10 @@ export class GroupService {
     data: Partial<GroupWizardFormData>,
     userId: number,
   ): Promise<{ Group_ID: number; Group_Name: string }> {
-    const apiData = { Group_ID: groupId, ...prepareForApi(data as GroupWizardFormData) };
+    const apiData = {
+      Group_ID: groupId,
+      ...(await prepareForApi(data as GroupWizardFormData)),
+    };
     const result = await this.mp!.updateTableRecords('Groups', [apiData], {
       partial: true,
       $select: 'Group_ID, Group_Name',
