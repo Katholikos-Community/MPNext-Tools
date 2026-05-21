@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +12,7 @@ import { AlertCircle } from "lucide-react";
 import { ToolParams, isNewRecord } from "@/lib/tool-params";
 import {
   groupWizardSchema,
-  GROUP_WIZARD_DEFAULTS,
+  buildGroupWizardDefaults,
   STEP_FIELDS,
   WIZARD_STEPS,
   WizardStepper,
@@ -34,9 +34,10 @@ import {
 
 interface GroupWizardProps {
   params: ToolParams;
+  mpTimezone: string;
 }
 
-export function GroupWizard({ params }: GroupWizardProps) {
+export function GroupWizard({ params, mpTimezone }: GroupWizardProps) {
   const router = useRouter();
   const isNew = isNewRecord(params);
   const isEditMode = !isNew && !!params.recordID && params.recordID > 0;
@@ -51,9 +52,13 @@ export function GroupWizard({ params }: GroupWizardProps) {
   const [contactDisplayMap, setContactDisplayMap] = useState<Map<number, string>>(new Map());
   const [groupDisplayMap, setGroupDisplayMap] = useState<Map<number, string>>(new Map());
 
+  // Compute once per mount so "Create Another" re-renders pick up the current
+  // MP-TZ wall-clock day. (mpTimezone is stable per page render.)
+  const initialDefaults = useMemo(() => buildGroupWizardDefaults(mpTimezone), [mpTimezone]);
+
   const form = useForm<GroupWizardFormData>({
     resolver: zodResolver(groupWizardSchema),
-    defaultValues: GROUP_WIZARD_DEFAULTS,
+    defaultValues: initialDefaults,
     mode: "onTouched",
   });
 
@@ -155,12 +160,12 @@ export function GroupWizard({ params }: GroupWizardProps) {
   }, [form, isEditMode, params.recordID]);
 
   const handleCreateAnother = useCallback(() => {
-    form.reset(GROUP_WIZARD_DEFAULTS);
+    form.reset(buildGroupWizardDefaults(mpTimezone));
     setCurrentStep(0);
     setCompletedSteps(new Set());
     setSubmitResult(null);
     setLoadError(null);
-  }, [form]);
+  }, [form, mpTimezone]);
 
   const handleClose = useCallback(() => {
     router.back();

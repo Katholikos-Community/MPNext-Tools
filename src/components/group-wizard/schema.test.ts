@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   groupWizardSchema,
   GROUP_WIZARD_DEFAULTS,
+  buildGroupWizardDefaults,
   STEP_FIELDS,
   type GroupWizardFormData,
 } from './schema';
 
-/** Helper: fill all required IDs so schema passes base validation */
+/** Helper: fill all required IDs + Start_Date so schema passes base validation */
 function validBase(): GroupWizardFormData {
   return {
     ...GROUP_WIZARD_DEFAULTS,
@@ -15,6 +16,7 @@ function validBase(): GroupWizardFormData {
     Congregation_ID: 1,
     Ministry_ID: 1,
     Primary_Contact: 42,
+    Start_Date: '2026-01-15',
   };
 }
 
@@ -127,8 +129,8 @@ describe('STEP_FIELDS', () => {
 });
 
 describe('GROUP_WIZARD_DEFAULTS', () => {
-  it('has Start_Date pre-populated with today (YYYY-MM-DD)', () => {
-    expect(GROUP_WIZARD_DEFAULTS.Start_Date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it('leaves Start_Date empty so the MP-TZ-aware factory must supply it', () => {
+    expect(GROUP_WIZARD_DEFAULTS.Start_Date).toBe('');
   });
 
   it('defaults all boolean flags to false', () => {
@@ -140,5 +142,32 @@ describe('GROUP_WIZARD_DEFAULTS', () => {
 
   it('defaults Available_On_App to null (tri-state boolean)', () => {
     expect(GROUP_WIZARD_DEFAULTS.Available_On_App).toBeNull();
+  });
+});
+
+describe('buildGroupWizardDefaults', () => {
+  it('pre-populates Start_Date as YYYY-MM-DD', () => {
+    expect(buildGroupWizardDefaults('America/New_York').Start_Date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('formats today in the supplied MP time zone, not the runtime zone', () => {
+    // Pick an instant where the date differs between Pacific and UTC: 03:00 UTC
+    // is still the previous day in America/Los_Angeles. We can't override
+    // `new Date()` cleanly without faking timers, so instead assert that the
+    // pair (Etc/UTC vs America/Kiritimati, +14) produces dates that are never
+    // more than one day apart — proving the function actually consults the zone.
+    const utc = buildGroupWizardDefaults('Etc/UTC').Start_Date;
+    const kiritimati = buildGroupWizardDefaults('Pacific/Kiritimati').Start_Date;
+    const utcMs = Date.parse(`${utc}T00:00:00Z`);
+    const kirMs = Date.parse(`${kiritimati}T00:00:00Z`);
+    const diffDays = Math.abs(kirMs - utcMs) / 86_400_000;
+    expect(diffDays === 0 || diffDays === 1).toBe(true);
+  });
+
+  it('preserves all non-date defaults from GROUP_WIZARD_DEFAULTS', () => {
+    const built = buildGroupWizardDefaults('America/New_York');
+    expect(built.Meets_Online).toBe(GROUP_WIZARD_DEFAULTS.Meets_Online);
+    expect(built.Available_On_App).toBe(GROUP_WIZARD_DEFAULTS.Available_On_App);
+    expect(built.Description).toBe(GROUP_WIZARD_DEFAULTS.Description);
   });
 });

@@ -177,10 +177,15 @@ export class MPHelper {
    * @example
    * // Create with Zod validation (recommended)
    * import { ContactLogSchema } from '@/lib/providers/ministry-platform/models';
+   * import { DomainTimezoneService } from '@/services/domainTimezoneService';
    *
+   * // MP stores datetimes as wall-clock in the domain's TZ, not UTC.
+   * // Route every datetime write through DomainTimezoneService.
+   * // See .claude/references/ministryplatform.datetimehandling.md
+   * const tz = DomainTimezoneService.getInstance();
    * const contactLogs = await mp.createTableRecords('Contact_Log', [{
    *   Contact_ID: 12345,
-   *   Contact_Date: new Date().toISOString(),
+   *   Contact_Date: await tz.toMpSqlDatetime(new Date()),
    *   Made_By: 1,
    *   Notes: 'Follow-up call completed'
    * }], {

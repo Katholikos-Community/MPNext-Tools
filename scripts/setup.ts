@@ -1200,12 +1200,18 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
     failedSteps++;
   }
 
-  // Step 9: Stored procedure reference (optional)
-  printStepHeader(9, totalSteps, 'Generating stored procedure reference (optional)');
+  // Step 9: Stored procedure reference
+  printStepHeader(9, totalSteps, 'Generating stored procedure reference');
+  console.log(
+    chalk.gray(
+      '  Produces .claude/references/ministryplatform.storedprocs.md — used by Claude Code'
+    )
+  );
+  console.log(chalk.gray('  for stored-proc query suggestions and authoring assistance.'));
 
   const shouldGenerateStoredProcs = await confirm({
     message: 'Generate stored procedure reference from Ministry Platform?',
-    default: false,
+    default: true,
   });
 
   if (shouldGenerateStoredProcs) {
@@ -1228,7 +1234,7 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
       passedSteps++;
     }
   } else {
-    console.log(chalk.gray('  Skipped'));
+    console.log(chalk.gray('  Skipped (run later with: npm run mp:generate:storedprocs)'));
     passedSteps++;
   }
 
