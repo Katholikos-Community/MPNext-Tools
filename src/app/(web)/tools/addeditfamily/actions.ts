@@ -100,7 +100,7 @@ export async function placeAutocomplete(
   await getSession();
   if (input.trim().length < 3) return [];
   const service = await GooglePlacesService.getInstance();
-  if (!service.isEnabled()) return [];
+  if (!(await service.isEnabled())) return [];
   return service.autocomplete(input, sessionToken);
 }
 
