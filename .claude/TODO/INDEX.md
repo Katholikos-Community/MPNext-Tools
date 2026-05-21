@@ -8,6 +8,7 @@ last_updated: 2026-05-21
 <!-- 2026-04-18: closed 3 utils TODOs (imb-fallback-silent, tool-params-missing-test, tool-params-parseint-nan) — see commit fix(utils): log barcode fallbacks, guard tool-params NaN, add tool-params tests -->
 <!-- 2026-04-18: closed 5 low TODOs (contexts-session-context-misnamed, dto-constants-batchsize-duplication, dto-constants-mailerid-not-validated, testing-claude-md-readme-counts-drift, verify-auth-oauth-flow) — see commit chore: rename contexts hook, dedupe BATCH_SIZE, validate mailerId, refresh docs -->
 <!-- 2026-05-21: opened 1 critical TODO (xmldom-critical-vulnerability) — see install-testing feedback; address before next ship -->
+<!-- 2026-05-21: closed 1 critical TODO (xmldom-critical-vulnerability) — replaced docxtemplater-image-module-free with maintained docxtemplater-image (uses @xmldom/xmldom@^0.9.7) -->
 
 
 # TODO Index
@@ -19,16 +20,14 @@ All open TODOs dropped during the context-engineering review (2026-04-17) and an
 - **medium**: doc drift, missing test, refactor with real cost
 - **low**: nits, minor doc fixes, stylistic improvements
 
-Total: **4 open TODOs**.
+Total: **3 open TODOs**.
 
 ---
 
 ## By severity
 
-### Critical (1)
-| Area | Tags | Title | File |
-|---|---|---|---|
-| components | security | Critical xmldom vulnerability via docxtemplater-image-module-free | [→](2026-05-21-xmldom-critical-vulnerability.md) |
+### Critical (0)
+_none open_
 
 ### High
 _none open_
@@ -47,8 +46,8 @@ _none open_
 
 ## By tag
 
-### security (1)
-- xmldom-critical-vulnerability — critical
+### security (0)
+_none open_
 
 ### bug (2)
 _see severity sections above; tag appears on items involving a functional defect_
@@ -74,7 +73,7 @@ _none open_
 
 | Area | Count |
 |---|---|
-| components | 4 |
+| components | 3 |
 | auth | 0 |
 | mp-provider | 0 |
 | services | 0 |

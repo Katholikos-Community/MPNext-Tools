@@ -72,7 +72,7 @@ vi.mock('pizzip', () => ({
   default: class {},
 }));
 
-vi.mock('docxtemplater-image-module-free', () => ({
+vi.mock('docxtemplater-image', () => ({
   default: class {},
 }));
 

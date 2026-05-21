@@ -23,7 +23,7 @@ import { preEncodeBarcodes } from '@/lib/barcode-helpers';
 import { validateMailerId } from '@/lib/validation';
 import Docxtemplater from 'docxtemplater';
 import PizZip from 'pizzip';
-import ImageModule from 'docxtemplater-image-module-free';
+import ImageModule from 'docxtemplater-image';
 import { imbBarcodeToBmp, postnetBarcodeToBmp } from '@/lib/barcode-image';
 
 async function getSession() {

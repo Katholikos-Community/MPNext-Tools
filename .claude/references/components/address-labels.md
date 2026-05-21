@@ -59,7 +59,7 @@ Tool route: `src/app/(web)/tools/addresslabels/page.tsx` → `address-labels.tsx
 - **POSTNET**: Legacy 5/9/11-digit tall/short bar barcode (no Mailer ID needed).
 - **Skip reasons** (`SkipReason` in `src/lib/dto/address-label.dto.ts:15`): `no_address`, `no_postal_code`, `opted_out` (`Bulk_Mail_Opt_Out=true`), `no_barcode` (only when `includeMissingBarcodes=false`), `no_household` (household mode only — contact lacks `Household_ID` so dedup cannot be guaranteed).
 - **Pre-encoded bar states**: `preEncodeBarcodes()` encodes once on the server into `LabelData.barStates` so the PDF/Word renderers are pure layout (see `../utils/barcodes.md`).
-- **Mail-merge tab**: uploads a `.docx` with `{Name}`, `{AddressLine1}`, `{AddressLine2}`, `{City}`, `{State}`, `{PostalCode}`, `{%Barcode}` tokens plus `{#addresses}…{/addresses}` loop and `{#isNotLast}<pagebreak>{/isNotLast}` conditional — barcodes become BMP images via `docxtemplater-image-module-free`.
+- **Mail-merge tab**: uploads a `.docx` with `{Name}`, `{AddressLine1}`, `{AddressLine2}`, `{City}`, `{State}`, `{PostalCode}`, `{%Barcode}` tokens plus `{#addresses}…{/addresses}` loop and `{#isNotLast}<pagebreak>{/isNotLast}` conditional — barcodes become BMP images via `docxtemplater-image`.
 - **LocalStorage persistence**: last-used `LabelConfig` stored under key `address-labels-config` (`src/app/(web)/tools/addresslabels/address-labels.tsx:15`).
 
 ## API / Interface
@@ -177,7 +177,7 @@ const SERVICE_TYPES = [{id:'040',…}, {id:'300',…}, {id:'044',…}, {id:'700'
 ### mergeTemplate (.docx mail merge)
 - Rejects `templateBase64` if `Math.ceil(length * 0.75) > 5 * 1024 * 1024`.
 - `preEncodeBarcodes()` then builds `addresses[]` rows with `{ Name, AddressLine1, AddressLine2, City, State, PostalCode, Barcode: 'barcode_N', isNotLast }` plus a `Map<string,Buffer>` of BMP barcodes keyed by `barcode_N`.
-- `Docxtemplater` with `docxtemplater-image-module-free` — `getImage` resolves key strings to buffers; `getSize` returns `[200, 25]` for the `Barcode` tag.
+- `Docxtemplater` with `docxtemplater-image` — `getImage` resolves key strings to buffers; `getSize` returns `[200, 25]` for the `Barcode` tag.
 - Render errors containing "tag" are wrapped as `Template error: …`.
 
 ### Mail merge tab upload flow

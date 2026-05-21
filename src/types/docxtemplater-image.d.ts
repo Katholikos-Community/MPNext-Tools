@@ -1,4 +1,4 @@
-declare module 'docxtemplater-image-module-free' {
+declare module 'docxtemplater-image' {
   interface ImageModuleOptions {
     centered?: boolean;
     getImage: (tagValue: unknown, tagName: string) => Buffer | string;
