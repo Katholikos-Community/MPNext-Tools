@@ -8,7 +8,12 @@ export { WizardStepper } from './wizard-stepper';
 export { WizardNavigation } from './wizard-navigation';
 export { ContactSearch } from './contact-search';
 export { GroupSearch } from './group-search';
-export { groupWizardSchema, GROUP_WIZARD_DEFAULTS, STEP_FIELDS } from './schema';
+export {
+  groupWizardSchema,
+  GROUP_WIZARD_DEFAULTS,
+  buildGroupWizardDefaults,
+  STEP_FIELDS,
+} from './schema';
 export type { GroupWizardFormData } from './schema';
 export { WIZARD_STEPS } from './types';
 export type {

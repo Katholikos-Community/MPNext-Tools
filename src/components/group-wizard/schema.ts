@@ -64,11 +64,30 @@ export const STEP_FIELDS: Record<number, (keyof GroupWizardFormData)[]> = {
   5: [], // Review step — no fields to validate
 };
 
+/**
+ * Format today's date as YYYY-MM-DD in the MP domain's time zone. Callers
+ * thread the IANA zone in via `buildGroupWizardDefaults` — never reach back
+ * into `Intl` with the browser's local zone, since MP stores wall-clock
+ * values in the domain's TZ (not UTC). See
+ * .claude/references/ministryplatform.datetimehandling.md.
+ */
+function todayInMpTimezone(mpTimezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: mpTimezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const lookup: Record<string, string> = {};
+  for (const part of parts) lookup[part.type] = part.value;
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
+}
+
 export const GROUP_WIZARD_DEFAULTS: GroupWizardFormData = {
   Group_Name: '',
   Group_Type_ID: undefined as unknown as number,
   Description: null,
-  Start_Date: new Date().toISOString().split('T')[0],
+  Start_Date: '',
   End_Date: null,
   Reason_Ended: null,
   Congregation_ID: undefined as unknown as number,
@@ -106,3 +125,17 @@ export const GROUP_WIZARD_DEFAULTS: GroupWizardFormData = {
   Promotion_Date: null,
   Descended_From: null,
 };
+
+/**
+ * Build form defaults with `Start_Date` pre-populated to today in the MP
+ * domain's time zone (IANA). Use this from the wizard component — the bare
+ * `GROUP_WIZARD_DEFAULTS` const leaves `Start_Date` empty because computing
+ * it at module-load time would use the browser/server's local zone instead
+ * of MP's.
+ */
+export function buildGroupWizardDefaults(mpTimezone: string): GroupWizardFormData {
+  return {
+    ...GROUP_WIZARD_DEFAULTS,
+    Start_Date: todayInMpTimezone(mpTimezone),
+  };
+}

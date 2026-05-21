@@ -205,7 +205,7 @@ describe('GroupWizard shell', () => {
 
   it('renders Step 1 after lookups resolve', async () => {
     const params: ToolParams = { recordID: -1 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
 
     await waitFor(() => {
       expect(screen.getByTestId('step-identity')).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe('GroupWizard shell', () => {
 
   it('Next button does not advance past step 0 when required fields are empty', async () => {
     const params: ToolParams = { recordID: -1 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
 
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
@@ -231,7 +231,7 @@ describe('GroupWizard shell', () => {
 
   it('step click on a non-completed future step is ignored', async () => {
     const params: ToolParams = { recordID: -1 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
 
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
@@ -247,7 +247,7 @@ describe('GroupWizard shell', () => {
   it('shows the error Alert when fetchGroupRecord fails in edit mode', async () => {
     mockFetchGroupRecord.mockResolvedValueOnce({ success: false, error: 'Group not found' });
     const params: ToolParams = { recordID: 999 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
 
     await waitFor(() => {
       expect(screen.getByText('Group not found')).toBeInTheDocument();
@@ -268,7 +268,7 @@ describe('GroupWizard shell', () => {
     });
 
     const params: ToolParams = { recordID: 100 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
 
     // Wait for lookups + record to resolve
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
@@ -292,7 +292,7 @@ describe('GroupWizard shell', () => {
 
   it('Cancel button invokes router.back', async () => {
     const params: ToolParams = { recordID: -1 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
     const cancelBtn = screen.getByRole('button', { name: /cancel/i });
@@ -317,7 +317,7 @@ describe('GroupWizard shell', () => {
     });
 
     const params: ToolParams = { recordID: 100 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
     // Advance through steps 0 → 5 by clicking Next five times.
@@ -352,7 +352,7 @@ describe('GroupWizard shell', () => {
     });
 
     const params: ToolParams = { recordID: -1 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
     // Use the test-only "Fill Valid" button on the mocked StepIdentity to
@@ -410,7 +410,7 @@ describe('GroupWizard shell', () => {
     });
 
     const params: ToolParams = { recordID: 100 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
     for (let i = 0; i < 5; i++) {
@@ -433,7 +433,7 @@ describe('GroupWizard shell', () => {
 
   it('exposes Cancel and Next controls on step 0', async () => {
     const params: ToolParams = { recordID: -1 };
-    render(<GroupWizard params={params} />);
+    render(<GroupWizard params={params} mpTimezone="America/New_York" />);
 
     await waitFor(() => expect(screen.getByTestId('step-identity')).toBeInTheDocument());
 
