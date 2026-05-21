@@ -74,16 +74,29 @@ const MODELS_PATH = path.join(
 );
 const NEXT_BUILD_PATH = path.join(PROJECT_ROOT, '.next');
 
-const REQUIRED_NODE_VERSION = 18;
+const REQUIRED_NODE_VERSION = 20;
 
-// Patterns to detect if this is a clone of the MPNext template repository
-const TEMPLATE_REPO_PATTERNS = [
-  'MinistryPlatform-Community/mpnext',
-  'MinistryPlatform-Community/ccm-pwa',
-];
+const SQL_INSTALL_PATH = path.join(PROJECT_ROOT, '_INSTALL', 'ministryplatform-install.sql');
+
+// Patterns to detect if this is a clone of the MPNext-Tools repository
+const TEMPLATE_REPO_PATTERNS = ['MinistryPlatform-Community/MPNext-Tools'];
 
 const ENV_VARS: EnvVar[] = [
   // Required variables
+  {
+    name: 'BETTER_AUTH_SECRET',
+    required: true,
+    sensitive: true,
+    description: 'Better Auth session cookie signing secret (32+ chars)',
+    autoGenerate: true,
+  },
+  {
+    name: 'BETTER_AUTH_URL',
+    required: true,
+    sensitive: false,
+    description: 'Application base URL (used for OAuth callback URLs)',
+    defaultValue: 'http://localhost:3000',
+  },
   {
     name: 'MINISTRY_PLATFORM_CLIENT_ID',
     required: true,
@@ -102,56 +115,43 @@ const ENV_VARS: EnvVar[] = [
     sensitive: false,
     description: 'Ministry Platform API base URL',
   },
-  {
-    name: 'NEXTAUTH_SECRET',
-    required: true,
-    sensitive: true,
-    description: 'NextAuth encryption secret',
-    autoGenerate: true,
-  },
-  {
-    name: 'NEXTAUTH_URL',
-    required: true,
-    sensitive: false,
-    description: 'Application URL',
-    defaultValue: 'http://localhost:3000',
-  },
   // Optional variables
   {
-    name: 'OIDC_PROVIDER_NAME',
+    name: 'MINISTRY_PLATFORM_DEV_CLIENT_ID',
     required: false,
     sensitive: false,
-    description: 'OAuth provider display name',
+    description: 'Dev-only MP API client ID (non-production use)',
   },
   {
-    name: 'OIDC_SCOPE',
+    name: 'MINISTRY_PLATFORM_DEV_CLIENT_SECRET',
     required: false,
-    sensitive: false,
-    description: 'OAuth scopes',
+    sensitive: true,
+    description: 'Dev-only MP API client secret (non-production use)',
   },
   {
-    name: 'OIDC_WELL_KNOWN_URL',
+    name: 'GOOGLE_PLACES_API_KEY',
     required: false,
-    sensitive: false,
-    description: 'OIDC well-known configuration URL',
+    sensitive: true,
+    description: 'Google Places API key for address autocomplete (optional)',
   },
   {
     name: 'NEXT_PUBLIC_MINISTRY_PLATFORM_FILE_URL',
     required: false,
     sensitive: false,
-    description: 'Ministry Platform file URL',
+    description: 'Ministry Platform file URL (derived from host)',
   },
   {
     name: 'NEXT_PUBLIC_APP_NAME',
     required: false,
     sensitive: false,
     description: 'Application display name',
+    defaultValue: 'MPNextApp',
   },
   {
-    name: 'NEXTAUTH_DEBUG',
+    name: 'NEXT_PUBLIC_PROD_URL',
     required: false,
     sensitive: false,
-    description: 'Enable NextAuth debug logging',
+    description: 'Production URL for authorized-tools debug panel comparison',
   },
 ];
 
@@ -383,7 +383,7 @@ function printResult(result: StepResult): void {
   }
 }
 
-async function generateNextAuthSecret(): Promise<string> {
+async function generateBetterAuthSecret(): Promise<string> {
   // Generate a random secret using Node.js crypto
   const { randomBytes } = await import('node:crypto');
   return randomBytes(32).toString('base64');
@@ -400,13 +400,11 @@ function normalizeMPHost(input: string): string {
 
 function deriveMPUrls(host: string): {
   baseUrl: string;
-  wellKnownUrl: string;
   fileUrl: string;
 } {
   const normalizedHost = normalizeMPHost(host);
   return {
     baseUrl: `https://${normalizedHost}/ministryplatformapi`,
-    wellKnownUrl: `https://${normalizedHost}/ministryplatformapi/oauth/.well-known/openid-configuration`,
     fileUrl: `https://${normalizedHost}/ministryplatformapi/files`,
   };
 }
@@ -459,14 +457,14 @@ function checkCloneStatus(): StepResult {
     return {
       success: true,
       warning: true,
-      message: 'Still connected to MPNext template repository',
+      message: 'Still connected to the upstream MPNext-Tools repository',
       details: detection.remoteUrl,
     };
   }
 
   return {
     success: true,
-    message: 'Git origin is not the template repository',
+    message: 'Git origin is not the upstream MPNext-Tools repository',
   };
 }
 
@@ -858,7 +856,7 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
   const detection = detectTemplateClone();
 
   if (detection.isClone) {
-    console.log(chalk.yellow('  ⚠ This appears to be a clone of the MPNext template'));
+    console.log(chalk.yellow('  ⚠ This appears to be a clone of the upstream MPNext-Tools repository'));
     if (detection.remoteUrl) {
       console.log(chalk.gray(`    ${detection.remoteUrl}`));
     }
@@ -867,7 +865,7 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
       message: 'How would you like to proceed?',
       choices: [
         {
-          name: 'Convert to fork (rename origin → upstream, track template updates)',
+          name: 'Convert to fork (rename origin → upstream, track upstream updates)',
           value: 'fork',
         },
         {
@@ -986,7 +984,6 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
   // Variables that are auto-derived from the MP host
   const mpDerivedVars = [
     'MINISTRY_PLATFORM_BASE_URL',
-    'OIDC_WELL_KNOWN_URL',
     'NEXT_PUBLIC_MINISTRY_PLATFORM_FILE_URL',
   ];
 
@@ -1005,7 +1002,7 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
   }
 
   console.log(chalk.yellow('\n  Ministry Platform Configuration'));
-  console.log(chalk.gray('  The OIDC, API, and File URLs will be derived from your MP host'));
+  console.log(chalk.gray('  The API and File URLs will be derived from your MP host'));
 
   const mpHost = await input({
     message: 'Enter your Ministry Platform host (e.g., mpi.ministryplatform.com):',
@@ -1015,11 +1012,9 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
   if (mpHost) {
     const derived = deriveMPUrls(mpHost);
     updates.set('MINISTRY_PLATFORM_BASE_URL', derived.baseUrl);
-    updates.set('OIDC_WELL_KNOWN_URL', derived.wellKnownUrl);
     updates.set('NEXT_PUBLIC_MINISTRY_PLATFORM_FILE_URL', derived.fileUrl);
 
     console.log(chalk.green(`  ✓ MINISTRY_PLATFORM_BASE_URL = ${derived.baseUrl}`));
-    console.log(chalk.green(`  ✓ OIDC_WELL_KNOWN_URL = ${derived.wellKnownUrl}`));
     console.log(chalk.green(`  ✓ NEXT_PUBLIC_MINISTRY_PLATFORM_FILE_URL = ${derived.fileUrl}`));
   }
 
@@ -1072,14 +1067,14 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
 
       console.log(chalk.yellow(`\n  ${varDef.name}: ${varDef.description}`));
 
-      if (varDef.autoGenerate && varDef.name === 'NEXTAUTH_SECRET') {
+      if (varDef.autoGenerate && varDef.name === 'BETTER_AUTH_SECRET') {
         const shouldGenerate = await confirm({
           message: `Auto-generate ${varDef.name}?`,
           default: true,
         });
 
         if (shouldGenerate) {
-          const secret = await generateNextAuthSecret();
+          const secret = await generateBetterAuthSecret();
           updates.set(varDef.name, secret);
           console.log(chalk.green(`  ✓ Generated ${varDef.name}`));
         } else {
@@ -1205,8 +1200,40 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
     failedSteps++;
   }
 
-  // Step 9: Build validation
-  printStepHeader(9, totalSteps, 'Building project');
+  // Step 9: Stored procedure reference (optional)
+  printStepHeader(9, totalSteps, 'Generating stored procedure reference (optional)');
+
+  const shouldGenerateStoredProcs = await confirm({
+    message: 'Generate stored procedure reference from Ministry Platform?',
+    default: false,
+  });
+
+  if (shouldGenerateStoredProcs) {
+    console.log(chalk.gray('  Running mp:generate:storedprocs...'));
+    const storedProcsResult = await execCommandStreaming(
+      'npm',
+      ['run', 'mp:generate:storedprocs'],
+      options.verbose
+    );
+
+    if (storedProcsResult.success) {
+      console.log(chalk.green('  ✓ Stored procedure reference generated'));
+      passedSteps++;
+    } else {
+      console.log(chalk.yellow('  ⚠ Stored procedure reference generation failed (non-critical)'));
+      if (!options.verbose && storedProcsResult.output) {
+        console.log(chalk.gray(storedProcsResult.output.slice(0, 500)));
+      }
+      warnings++;
+      passedSteps++;
+    }
+  } else {
+    console.log(chalk.gray('  Skipped'));
+    passedSteps++;
+  }
+
+  // Step 10: Build validation
+  printStepHeader(10, totalSteps, 'Building project');
   console.log(chalk.gray('  Running npm run build...'));
 
   const buildResult = await execCommandStreaming('npm', ['run', 'build'], options.verbose);
@@ -1225,7 +1252,7 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
     failedSteps++;
   }
 
-  // Step 9: Summary
+  // Summary
   console.log(chalk.bold.blue('\n\nSetup Complete!'));
   console.log(chalk.blue('==============='));
 
@@ -1239,6 +1266,21 @@ async function runInteractiveSetup(options: SetupOptions): Promise<number> {
     console.log(
       chalk.red(`✗ ${passedSteps}/${totalChecks} steps passed, ${failedSteps} failed`)
     );
+  }
+
+  // Ministry Platform database install reminder
+  if (fs.existsSync(SQL_INSTALL_PATH)) {
+    console.log(chalk.bold.yellow('\nMinistry Platform database setup required:'));
+    console.log(
+      chalk.white(
+        '  Deploy the bundled SQL install script to your MP database before using tools that'
+      )
+    );
+    console.log(
+      chalk.white('  rely on api_MPNextTools_* stored procedures (e.g., Field Management):')
+    );
+    console.log(chalk.cyan(`    ${SQL_INSTALL_PATH}`));
+    console.log(chalk.gray('  Run it via SQL Server Management Studio against the MP database.'));
   }
 
   console.log(chalk.bold('\nNext steps:'));

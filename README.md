@@ -46,11 +46,11 @@ A Ministry Platform page tools application powered by Next.js 16, React 19, Bett
 - **Address Labels**: Print address labels with USPS Intelligent Mail Barcodes (IMb), POSTNET fallback, and Word document mail merge
 - **Template Editor**: Visual email/document template editor with GrapesJS, merge field support, and MP template integration
 - **Modern UI**: 22 Radix UI + shadcn/ui components with Tailwind CSS v4
-- **Type-Safe API**: Full TypeScript strict mode with 873 auto-generated model and schema files from Ministry Platform
+- **Type-Safe API**: Full TypeScript strict mode with auto-generated model and schema files from Ministry Platform
 - **REST API Client**: Six specialized services covering tables, procedures, communications, files, metadata, and domain operations
 - **Type Generation**: CLI tool to generate TypeScript interfaces and Zod v4 schemas from MP database schema
 - **Validation**: Optional Zod v4 runtime validation in MPHelper before API calls
-- **Testing**: 621 test cases across 43 files with Vitest 4.1 (see `.claude/references/_meta/facts/` for the authoritative snapshot)
+- **Testing**: Comprehensive Vitest 4.1 suite (see `.claude/references/_meta/facts/` for the authoritative snapshot)
 - **Setup Wizard**: Interactive CLI setup with environment configuration, dependency management, and build verification
 
 ## Architecture
@@ -77,7 +77,7 @@ MPHelper (Public API Facade)
 ```
 
 - REST API client with automatic OAuth2 client credentials token management (5-minute refresh buffer)
-- Type-safe models and Zod validation schemas (436 tables, 873 generated files)
+- Type-safe models and Zod validation schemas auto-generated from the MP schema
 - Six services: Table, Procedure, Communication, File, Metadata, Domain
 
 ### Authentication
@@ -99,9 +99,22 @@ Component -> Server Action -> Service (singleton) -> MPHelper -> Ministry Platfo
 
 ## Prerequisites
 
-- **Node.js**: v18 or higher
+- **Node.js**: v20 or higher (enforced via `engines` in `package.json` and the setup script). Required by Next.js 16, React 19, and TypeScript 6.0.
 - **Package Manager**: npm
 - **Ministry Platform**: Active instance with API credentials and OAuth client configured
+- **Ministry Platform Database**: SQL install script applied (see [Database Setup](#database-setup) below)
+
+### Database Setup
+
+The repo ships a bundled SQL install script at `_INSTALL/ministryplatform-install.sql`. It contains the stored procedures and DDL that several tools depend on (for example, the Field Management tool requires `api_MPNextTools_GetPages`, `api_MPNextTools_GetPageFields`, and `api_MPNextTools_UpdatePageFieldOrder`).
+
+Deploy it once per Ministry Platform database (and again whenever the SQL bundle changes):
+
+1. Open SQL Server Management Studio (SSMS) and connect to the MP database
+2. Open `_INSTALL/ministryplatform-install.sql`
+3. Execute the script against the MP database
+
+The script is regenerated automatically as part of `npm run build` (via `npm run mp:build:install`), bundling everything under `src/lib/providers/ministry-platform/db/` into the single install file.
 
 ## Getting Started
 
@@ -117,15 +130,18 @@ npm run setup
 ```
 
 The setup wizard will:
-1. Verify Node.js version (v18+ required)
+1. Verify Node.js version (v20+ required)
 2. Detect project origin and configure git
 3. Create `.env.local` from `.env.example` (if needed)
-4. Prompt for Ministry Platform host and derive all API URLs automatically
-5. Configure OAuth client credentials
+4. Prompt for Ministry Platform host and derive API and file URLs automatically
+5. Configure Ministry Platform API client credentials
 6. Auto-generate `BETTER_AUTH_SECRET`
 7. Install and update dependencies
 8. Generate Ministry Platform types
-9. Run a production build to verify configuration
+9. Optionally generate the stored procedure reference
+10. Run a production build to verify configuration
+
+When the wizard finishes it prints a reminder pointing to `_INSTALL/ministryplatform-install.sql` so you can deploy the SQL prerequisites to your MP database.
 
 **Additional setup options:**
 ```bash
@@ -156,7 +172,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Update `.env.local` with your configuration:
+Update `.env.local` with the required variables:
 
 ```env
 # Generate with: openssl rand -base64 32
@@ -169,11 +185,18 @@ BETTER_AUTH_URL=http://localhost:3000
 MINISTRY_PLATFORM_CLIENT_ID=MPNext
 MINISTRY_PLATFORM_CLIENT_SECRET=your_client_secret
 MINISTRY_PLATFORM_BASE_URL=https://your-instance.ministryplatform.com/ministryplatformapi
-
-# Public Keys
-NEXT_PUBLIC_MINISTRY_PLATFORM_FILE_URL=https://your-instance.ministryplatform.com/ministryplatformapi/files
-NEXT_PUBLIC_APP_NAME=MPNext-Tools
 ```
+
+**Optional environment variables** (see `.env.example` for full inline documentation):
+
+| Variable | Purpose |
+|----------|---------|
+| `MINISTRY_PLATFORM_DEV_CLIENT_ID` | Dev/staging-only MP API client ID. Ignored in production builds. |
+| `MINISTRY_PLATFORM_DEV_CLIENT_SECRET` | Dev/staging-only MP API client secret. Ignored in production builds. |
+| `GOOGLE_PLACES_API_KEY` | Enables address autocomplete (falls back to MP `dp_Configuration_Settings` → `GoogleMapsAPIKey` first). |
+| `NEXT_PUBLIC_MINISTRY_PLATFORM_FILE_URL` | MP file URL — derived from the MP host by the setup wizard. |
+| `NEXT_PUBLIC_APP_NAME` | Application display name. Default: `MPNextApp`. |
+| `NEXT_PUBLIC_PROD_URL` | Production URL used by the Authorized Tools debug panel for path comparison. |
 
 #### 3. Generate Ministry Platform Types
 
@@ -256,12 +279,13 @@ openssl rand -base64 32
 
 ### Production Deployment
 
-1. Update `BETTER_AUTH_URL` to your production domain
-2. Add production redirect and post-logout redirect URIs to Ministry Platform OAuth client
-3. Ensure all environment variables are set in your hosting provider
-4. Enable HTTPS/SSL certificates
-5. Run `npm run mp:generate:models` to ensure types are current
-6. Test the complete authentication flow
+1. Deploy `_INSTALL/ministryplatform-install.sql` to the production Ministry Platform database (see [Database Setup](#database-setup))
+2. Update `BETTER_AUTH_URL` to your production domain
+3. Add production redirect and post-logout redirect URIs to Ministry Platform OAuth client
+4. Ensure all environment variables are set in your hosting provider
+5. Enable HTTPS/SSL certificates
+6. Run `npm run mp:generate:models` to ensure types are current
+7. Test the complete authentication flow
 
 ## Project Structure
 
@@ -314,7 +338,7 @@ MPNext-Tools/
 │   │       └── ministry-platform/        # Ministry Platform provider
 │   │           ├── auth/                 # Client credentials OAuth
 │   │           ├── services/             # 6 API services
-│   │           ├── models/               # Generated types (873 files)
+│   │           ├── models/               # Generated types + Zod schemas
 │   │           ├── types/                # Type definitions
 │   │           ├── utils/                # HttpClient utility
 │   │           ├── scripts/              # Type generation CLI
@@ -549,9 +573,9 @@ npx tsx src/lib/providers/ministry-platform/scripts/generate-types.ts --help
 | `--sample-size <num>` | Records to sample | `5` |
 
 **Generated output** (for `mp:generate:models`):
-- 436 TypeScript interfaces with JSDoc comments, FK annotations, and type constraints
-- 436 Zod validation schemas with email/URL/length validators
-- 1 barrel export `index.ts`
+- TypeScript interfaces for every MP table with JSDoc comments, FK annotations, and type constraints
+- Matching Zod validation schemas with email/URL/length validators
+- A barrel export `index.ts`
 - Schema documentation at `.claude/references/ministryplatform.schema.md`
 
 ## Components
@@ -768,7 +792,7 @@ Uses calver format: `v{YYYY}.{MM}.{DD}.{HHmm}`. Categorizes PRs as features, fix
 | **[Components Reference](.claude/references/components/README.md)** | Component inventory with compliance status |
 | **[Services Reference](.claude/references/services/README.md)** | Service layer docs, MP query patterns, DTOs |
 | **[Testing Reference](.claude/references/testing/README.md)** | Vitest patterns, mock setup, coverage data |
-| **[MP Schema Reference](.claude/references/ministryplatform.schema.md)** | Auto-generated database schema (436 tables) |
+| **[MP Schema Reference](.claude/references/ministryplatform.schema.md)** | Auto-generated database schema |
 | **[MP Stored Procedures](.claude/references/ministryplatform.storedprocs.md)** | Auto-generated stored procedure reference |
 
 ## Code Style & Conventions

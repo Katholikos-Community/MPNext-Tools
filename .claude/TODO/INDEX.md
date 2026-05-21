@@ -1,12 +1,13 @@
 ---
 title: TODO Index
 type: index
-last_updated: 2026-04-18
+last_updated: 2026-05-21
 ---
 
 <!-- 2026-04-18: closed 3 routing TODOs (proxy-api-whitelist, signin-no-error-ui, home-page-roundtrip) — see commit fix(routing): tighten proxy API whitelist, add signin error UI, optimize /home redirect -->
 <!-- 2026-04-18: closed 3 utils TODOs (imb-fallback-silent, tool-params-missing-test, tool-params-parseint-nan) — see commit fix(utils): log barcode fallbacks, guard tool-params NaN, add tool-params tests -->
 <!-- 2026-04-18: closed 5 low TODOs (contexts-session-context-misnamed, dto-constants-batchsize-duplication, dto-constants-mailerid-not-validated, testing-claude-md-readme-counts-drift, verify-auth-oauth-flow) — see commit chore: rename contexts hook, dedupe BATCH_SIZE, validate mailerId, refresh docs -->
+<!-- 2026-05-21: opened 1 critical TODO (xmldom-critical-vulnerability) — see install-testing feedback; address before next ship -->
 
 
 # TODO Index
@@ -18,14 +19,16 @@ All open TODOs dropped during the context-engineering review (2026-04-17) and an
 - **medium**: doc drift, missing test, refactor with real cost
 - **low**: nits, minor doc fixes, stylistic improvements
 
-Total: **3 open TODOs**.
+Total: **4 open TODOs**.
 
 ---
 
 ## By severity
 
-### Critical
-_none open_
+### Critical (1)
+| Area | Tags | Title | File |
+|---|---|---|---|
+| components | security | Critical xmldom vulnerability via docxtemplater-image-module-free | [→](2026-05-21-xmldom-critical-vulnerability.md) |
 
 ### High
 _none open_
@@ -44,8 +47,8 @@ _none open_
 
 ## By tag
 
-### security (0)
-_none open_
+### security (1)
+- xmldom-critical-vulnerability — critical
 
 ### bug (2)
 _see severity sections above; tag appears on items involving a functional defect_
@@ -71,7 +74,7 @@ _none open_
 
 | Area | Count |
 |---|---|
-| components | 3 |
+| components | 4 |
 | auth | 0 |
 | mp-provider | 0 |
 | services | 0 |
