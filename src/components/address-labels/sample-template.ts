@@ -88,7 +88,7 @@ export async function generateSampleTemplate(): Promise<string> {
           ],
         }),
 
-        // Barcode image placeholder (% prefix for docxtemplater-image-module-free)
+        // Barcode image placeholder (% prefix for docxtemplater-image)
         new Paragraph({
           spacing: { after: 200 },
           children: [new TextRun({ text: '{%Barcode}', size: 22, font: 'Arial' })],

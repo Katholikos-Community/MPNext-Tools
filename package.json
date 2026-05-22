@@ -47,7 +47,7 @@
     "cmdk": "^1.1.1",
     "docx": "^9.6.1",
     "docxtemplater": "^3.68.5",
-    "docxtemplater-image-module-free": "^1.1.1",
+    "docxtemplater-image": "^0.1.2",
     "dotenv": "^17.3.1",
     "grapesjs": "^0.22.14",
     "grapesjs-mjml": "^1.0.8",
