@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { parseAdditionalUserInput } from 'better-auth/db';
+import { userAdditionalFields } from '@/lib/auth';
 
 /**
  * Auth Tests
@@ -184,6 +186,34 @@ describe('Auth - OAuth Configuration', () => {
     };
 
     expect(mappedFields.userGuid).toBe('ab12cd34-ef56-7890-abcd-ef1234567890');
+  });
+
+  /**
+   * Regression guard for the better-auth 1.6 upgrade incident.
+   *
+   * 1.6 changed how additional user fields are parsed from the OAuth provider
+   * profile: a user additionalField declared with `input: false` no longer
+   * flows through when a value is supplied. `userGuid` is populated
+   * server-side via mapProfileToUser (never by user input), so `input: false`
+   * broke it — leaving session.user.userGuid undefined and breaking every MP
+   * profile lookup (blank avatar, dead user menu).
+   *
+   * In 1.6.11 the exact behavior is: parseAdditionalUserInput THROWS
+   * "userGuid is not allowed to be set" when the field is `input: false` and a
+   * value is present; with `input: true` it returns { userGuid }.
+   *
+   * This runs the REAL better-auth parse function against our REAL field
+   * config, so it fails if (a) someone flips userGuid back to input:false, or
+   * (b) a future better-auth upgrade changes how provider-profile fields are
+   * parsed.
+   */
+  it('persists userGuid from the OAuth provider profile (better-auth 1.6 guard)', () => {
+    const guid = 'ab12cd34-ef56-7890-abcd-ef1234567890';
+    const options = { user: { additionalFields: userAdditionalFields } };
+
+    const parsed = parseAdditionalUserInput(options, { userGuid: guid });
+
+    expect(parsed).toHaveProperty('userGuid', guid);
   });
 
   it('should distinguish user.id (Better Auth internal) from userGuid (MP User_GUID)', () => {
