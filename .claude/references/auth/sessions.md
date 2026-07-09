@@ -5,7 +5,7 @@ type: reference
 applies_to: [src/lib/auth.ts, src/lib/auth-client.ts, src/contexts/session-context.tsx]
 symbols: [auth, authClient, useAppSession, Session, SessionData]
 related: [oauth-flow.md, user-identity.md, route-protection.md]
-last_verified: 2026-04-17
+last_verified: 2026-07-09
 ---
 
 ## Purpose
@@ -22,7 +22,7 @@ Session strategy: stateless JWT cookie cache (no DB), a lightweight `customSessi
 - **Cookie cache**: 1-hour TTL (`maxAge: 60 * 60`), `strategy: "jwt"`. Subsequent `getSession()` calls within the TTL decode the cookie, bypassing any DB (there is none anyway).
 - **OAuth tokens in cookie**: `account.storeAccountCookie: true` + `storeStateStrategy: "cookie"` — there's no DB to persist them in.
 - **`customSession` runs every `getSession()` call** when the cache expires. It **must stay cheap**: no MP API calls here. Profile enrichment happens in `UserProvider` (see `../contexts/user-provider.md`).
-- **`additionalFields.userGuid`** is declared with `input: false` — clients cannot set it; it's populated only by `mapProfileToUser`. See `user-identity.md`.
+- **`additionalFields.userGuid`** is declared with `input: true` (extracted to the exported `userAdditionalFields` const) and populated only by `mapProfileToUser`. It **must not** be `input: false`: as of better-auth 1.6 that flag blocks the field from the OAuth profile → `userGuid` never persists → broken avatar/menu. See `user-identity.md` and the guard in `src/auth.test.ts`.
 - **Type export:** `export type Session = typeof auth.$Infer.Session;` — server-side consumers import this (`src/lib/auth.ts:117`).
 - Client-side mirror: `SessionData = typeof authClient.$Infer.Session` (`src/contexts/session-context.tsx:5`).
 
@@ -42,13 +42,8 @@ account: {
   storeAccountCookie: true,
 },
 user: {
-  additionalFields: {
-    userGuid: {
-      type: "string" as const,
-      required: false,
-      input: false,
-    },
-  },
+  // extracted to an exported `userAdditionalFields` const (see user-identity.md)
+  additionalFields: userAdditionalFields, // { userGuid: { type: "string", required: false, input: true } }
 },
 ```
 
@@ -155,7 +150,7 @@ export function useAppSession() {
 Returns `data` directly (no `isPending` exposure).
 
 ## Gotchas
-- **No DB = no cross-restart persistence.** A server restart invalidates all sessions; users must re-log in. Known limitation.
+- **⚠️ No DB adapter = in-memory session store (production risk).** No `database` key is configured in `src/lib/auth.ts`, so better-auth falls back to its in-memory adapter. Session state lives only in-memory + the signed cookie. A process restart drops the store, and on serverless/Vercel **every cold start begins with an empty store** — so once the 1-hour cookie cache expires, a request that lands on a fresh instance returns `null` and the user intermittently appears logged out. **Recommended follow-up: configure a persistent adapter before production.** This is the top auth refactor, independent of the userGuid fix.
 - **`userGuid` requires a cast** on both server and client because `customSessionClient` and `customSession`'s inferred output don't expose `additionalFields`. This is a Better Auth type limitation. See `user-identity.md#type-casts`.
 - **1-hour `cookieCache` staleness**: Changes to `customSession` logic (e.g., adding a field) won't appear in returning users' sessions until the cookie cache expires or they re-auth.
 - **Refresh tokens**: `offline_access` scope is requested and `storeAccountCookie: true` persists tokens, but automatic refresh behavior in stateless cookie mode is **not explicitly implemented or tested** in the codebase.

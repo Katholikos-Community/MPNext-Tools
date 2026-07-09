@@ -5,6 +5,28 @@ import { nextCookies } from "better-auth/next-js";
 
 const mpBaseUrl = process.env.MINISTRY_PLATFORM_BASE_URL!;
 
+/**
+ * Custom fields added to the Better Auth `user` record.
+ *
+ * `userGuid` (the MP User_GUID / OAuth `sub`) MUST keep `input: true`. It is
+ * populated server-side from the OAuth profile via `mapProfileToUser`. As of
+ * better-auth 1.6, `parseAdditionalUserInputFromProviderProfile` strips any
+ * additional field declared with `input: false` BEFORE the user record is
+ * created — so `input: false` silently drops `userGuid`, which breaks every MP
+ * profile lookup (avatar, user menu, User_ID resolution). There is no
+ * user-facing form that sets this field (the app uses genericOAuth only, with
+ * no email/password signup or update-user endpoint), so allowing input carries
+ * no practical risk here. `src/auth.test.ts` guards this against future
+ * regressions.
+ */
+export const userAdditionalFields = {
+  userGuid: {
+    type: "string" as const,
+    required: false,
+    input: true,
+  },
+};
+
 const options = {
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXTAUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -20,13 +42,7 @@ const options = {
     storeAccountCookie: true,
   },
   user: {
-    additionalFields: {
-      userGuid: {
-        type: "string" as const,
-        required: false,
-        input: false,
-      },
-    },
+    additionalFields: userAdditionalFields,
   },
   plugins: [
     genericOAuth({

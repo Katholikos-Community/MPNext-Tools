@@ -5,7 +5,7 @@ type: reference
 applies_to: [src/lib/auth.ts, src/contexts/user-context.tsx]
 symbols: [userGuid, user.id, additionalFields]
 related: [sessions.md, oauth-flow.md, ../services/user-service.md]
-last_verified: 2026-04-17
+last_verified: 2026-07-09
 ---
 
 ## Purpose
@@ -32,20 +32,54 @@ Better Auth explicitly strips the incoming `id` when creating the user row, usin
 ## `additionalFields.userGuid` declaration (verbatim)
 
 ```typescript
-// src/lib/auth.ts:22-30
-user: {
-  additionalFields: {
-    userGuid: {
-      type: "string" as const,
-      required: false,
-      input: false,
-    },
+// src/lib/auth.ts — extracted to an exported const so a test can assert against it
+export const userAdditionalFields = {
+  userGuid: {
+    type: "string" as const,
+    required: false,
+    input: true,
   },
+};
+
+// ...referenced in the options:
+user: {
+  additionalFields: userAdditionalFields,
 },
 ```
 
-- `input: false` — users cannot set it during signup; only server plugins (like `mapProfileToUser`) populate it.
+> ⚠️ **`userGuid` MUST keep `input: true`.** It is populated server-side from the
+> OAuth profile via `mapProfileToUser`, not by user input. As of better-auth
+> 1.6, the provider-profile field parser (`parseAdditionalUserInput` in
+> `node_modules/better-auth/dist/db/schema.mjs`) no longer lets an
+> `input: false` additionalField through when a value is supplied — in 1.6.11 it
+> throws `"userGuid is not allowed to be set"`, so the OAuth-created user never
+> gets a `userGuid`. Result: `session.user.userGuid` is `undefined` → blank
+> avatar, dead user menu, broken MP profile lookups. There is no user-facing
+> form that sets this field (genericOAuth only; no email/password signup or
+> update-user endpoint), so `input: true` carries no practical risk here.
+> Guarded by `src/auth.test.ts` (runs the real better-auth parser against the
+> real `userAdditionalFields` config).
+
+- `input: true` — see the warning above. The field is only ever set server-side by `mapProfileToUser`.
 - `required: false` — the field is optional in the TS type, so consumers must null-check.
+
+## Better Auth upgrade checklist
+
+`npm audit fix` / `npm update` can bump better-auth across minor versions (this
+bug shipped via a bump from 1.4.18 → 1.6.x). CI (build + lint + unit tests) does
+**not** exercise a real OAuth login, so session/OAuth regressions ship silently.
+After **any** better-auth version change:
+
+1. Read the changelog for `genericOAuth`, `customSession`, `additionalFields`,
+   cookie-cache / session serialization, and `mapProfileToUser`.
+2. `npm run test:run src/auth.test.ts` — runs the 1.6 field-persistence guard.
+3. **Manual smoke test (required — nothing else catches this):** `npm run dev`,
+   **sign out and sign in fresh** (stale sessions predate any user-record change),
+   open `/api/auth/get-session`, and confirm `user.userGuid` is present. Confirm
+   the header avatar renders and the user menu opens with a working sign-out.
+4. If `userGuid` is missing, inspect `parseAdditionalUserInput` (formerly
+   `parseAdditionalUserInputFromProviderProfile`) in
+   `node_modules/better-auth/dist/db/schema.mjs`.
 
 ## `mapProfileToUser` (verbatim)
 
