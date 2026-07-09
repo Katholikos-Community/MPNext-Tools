@@ -94,10 +94,47 @@ describe('AuthWrapper', () => {
     });
   });
 
+  describe('when the session is missing userGuid', () => {
+    // A session that exists but has no userGuid is unusable: every MP lookup
+    // keys off userGuid, so the header avatar/menu — and the sign-out control —
+    // never render. AuthWrapper routes these to /session-error, which can still
+    // sign the user out. This guards the better-auth 1.6 regression.
+    it('redirects to /session-error when userGuid is absent', async () => {
+      setHeaders({ 'x-pathname': '/tools/template' });
+      mockGetSession.mockResolvedValueOnce({
+        user: { id: 'ba-id', name: 'No Guid' },
+        session: {},
+      });
+
+      await expect(
+        AuthWrapper({ children: 'content' } as never)
+      ).rejects.toThrow('NEXT_REDIRECT:/session-error');
+
+      expect(mockRedirect).toHaveBeenCalledWith('/session-error');
+    });
+
+    it('redirects to /session-error when userGuid is null', async () => {
+      setHeaders({ 'x-pathname': '/tools/template' });
+      mockGetSession.mockResolvedValueOnce({
+        user: { id: 'ba-id', userGuid: null },
+        session: {},
+      });
+
+      await expect(
+        AuthWrapper({ children: 'content' } as never)
+      ).rejects.toThrow('NEXT_REDIRECT:/session-error');
+
+      expect(mockRedirect).toHaveBeenCalledWith('/session-error');
+    });
+  });
+
   describe('when authenticated', () => {
     it('does not redirect and returns children', async () => {
       setHeaders({ 'x-pathname': '/tools/template' });
-      mockGetSession.mockResolvedValueOnce({ user: { id: '1' }, session: {} });
+      mockGetSession.mockResolvedValueOnce({
+        user: { id: '1', userGuid: 'guid-1' },
+        session: {},
+      });
 
       const result = await AuthWrapper({ children: 'content' } as never);
 

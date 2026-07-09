@@ -5,7 +5,7 @@ type: reference
 applies_to: [src/proxy.ts, src/components/layout/auth-wrapper.tsx, src/app/(web)/layout.tsx]
 symbols: [proxy, config, AuthWrapper]
 related: [sessions.md, oauth-flow.md]
-last_verified: 2026-04-17
+last_verified: 2026-07-09
 ---
 
 ## Purpose
@@ -17,11 +17,12 @@ Dual-layer route protection: edge-level cookie presence check in `src/proxy.ts` 
 - `src/components/layout/auth-wrapper.tsx` — server-component guard used by `(web)` layout
 - `src/components/layout/auth-wrapper.test.tsx` — `AuthWrapper` redirect/callbackUrl tests
 - `src/app/(web)/layout.tsx` — mounts `<AuthWrapper>` around authenticated pages
+- `src/app/session-error/page.tsx` — recovery page for broken (no-`userGuid`) sessions; **outside** `(web)`
 
 ## Key concepts
 - **Next.js 16 renamed `middleware.ts` → `proxy.ts`** and `middleware()` → `proxy()`. The matcher is still exported as `config`.
 - **Layer 1 (proxy):** `getSessionCookie()` from `better-auth/cookies` — **cookie-presence check only**, no JWT decode, no DB (there's no DB). Fast path gate at the edge.
-- **Layer 2 (`AuthWrapper`):** `auth.api.getSession({ headers })` in a server component — decodes the cookie, validates session, redirects to `/signin` with `callbackUrl` if invalid/missing.
+- **Layer 2 (`AuthWrapper`):** `auth.api.getSession({ headers })` in a server component — decodes the cookie, validates session, redirects to `/signin` with `callbackUrl` if invalid/missing. It **also** redirects a session that exists but has no `userGuid` to `/session-error` (see "Broken-session recovery" below).
 - **`x-pathname` forwarding:** proxy copies `pathname + search` into a request header. `AuthWrapper` reads it via `headers()` to build an accurate `callbackUrl` even when the proxy itself lets the request through (valid cookie, decoded session invalid).
 - **Public paths (proxy bypass):** `/api/*` (Better Auth endpoints) and `/signin`. Static (`_next/static`, `_next/image`, `favicon.ico`, `assets/`) are excluded via the matcher.
 
@@ -79,7 +80,7 @@ export const config = {
 ## AuthWrapper (verbatim, `src/components/layout/auth-wrapper.tsx`)
 
 ```typescript
-// src/components/layout/auth-wrapper.tsx:5-20
+// src/components/layout/auth-wrapper.tsx
 export async function AuthWrapper({ children }: { children: React.ReactNode }) {
   const hdrs = await headers();
   const session = await auth.api.getSession({ headers: hdrs });
@@ -92,6 +93,14 @@ export async function AuthWrapper({ children }: { children: React.ReactNode }) {
     const signinUrl = new URL("/signin", "http://placeholder");
     signinUrl.searchParams.set("callbackUrl", originalPath);
     redirect(`${signinUrl.pathname}${signinUrl.search}`);
+  }
+
+  // A session without a userGuid is unusable: every MP lookup keys off userGuid,
+  // and without it the header avatar/menu never renders — leaving the user with
+  // no way to sign out. Route these broken sessions to a recovery page instead.
+  const userGuid = (session.user as { userGuid?: string | null }).userGuid;
+  if (!userGuid) {
+    redirect("/session-error");
   }
 
   return <>{children}</>;
@@ -119,8 +128,9 @@ Mounted via:
 |---|---|---|
 | `/api/*` | pass through (public) | not mounted (no `(web)` layout) |
 | `/signin` | pass through (public) | not mounted |
+| `/session-error` | pass through if cookie present; else → `/signin` | not mounted (outside `(web)`) — no redirect loop |
 | `/_next/static/*`, `/_next/image/*`, `/favicon.ico`, `/assets/*` | excluded by matcher | not mounted |
-| `/tools/...`, `/home`, etc. | redirect to `/signin?callbackUrl=<path>` if no cookie | redirect if decoded session is missing |
+| `/tools/...`, `/home`, etc. | redirect to `/signin?callbackUrl=<path>` if no cookie | `/signin` if session missing; `/session-error` if session present but no `userGuid` |
 
 ## `callbackUrl` preservation end-to-end
 
@@ -134,6 +144,34 @@ Mounted via:
 Tested:
 - `src/proxy.test.ts:98-107` — proxy attaches `callbackUrl` with query string preserved
 - `src/components/layout/auth-wrapper.test.tsx:51-94` — `AuthWrapper` reads `x-pathname` and falls back to `/`
+
+## Broken-session recovery (`/session-error`)
+
+A session can be authenticated (cookie present, `getSession()` returns a user)
+yet have **no `userGuid`** — e.g. after a better-auth upgrade drops the field
+(see `user-identity.md`), or a user row created before the field existed. Such a
+session is a trap: every MP lookup keys off `userGuid`, so the header
+avatar/menu never render — and the normal sign-out control lives *in* that menu,
+so the user is stuck with no way out.
+
+`AuthWrapper` defends against this independent of root cause: a session with no
+`userGuid` → `redirect("/session-error")`. The page (`src/app/session-error/page.tsx`)
+renders a recovery screen with a `handleSignOut` form button, giving the user an
+unconditional exit.
+
+Why this placement:
+- **Not the proxy:** it does a cookie-*presence* check and never decodes the
+  JWT, so it can't cheaply see `userGuid`.
+- **Not cookie deletion in the wrapper:** Next.js forbids cookie mutation during
+  a Server Component render (only actions/route handlers) — which is exactly why
+  recovery uses a server-action form button, not an auto-clear.
+- **`/session-error` is outside the `(web)` route group,** so it is not wrapped
+  by `AuthWrapper` and cannot redirect-loop. The proxy lets it through whenever a
+  (broken but present) session cookie exists.
+
+Tested: `src/components/layout/auth-wrapper.test.tsx` — no session → `/signin`,
+session without `userGuid` → `/session-error`, `userGuid: null` → `/session-error`,
+healthy session → renders children.
 
 ## Gotchas
 - **Next.js 16 rename:** anything that refers to `middleware.ts` or `middleware()` is stale. This project uses `proxy.ts` / `proxy()`.
