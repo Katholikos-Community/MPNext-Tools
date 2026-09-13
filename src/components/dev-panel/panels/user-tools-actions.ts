@@ -2,21 +2,12 @@
 
 import { requireDevSession } from "./require-dev-session";
 import { ToolService } from "@/services/toolService";
-import { UserService } from "@/services/userService";
 
 export async function getUserTools(): Promise<string[]> {
-  const session = await requireDevSession("Dev panel");
+  await requireDevSession("Dev panel");
 
-  const userGuid = (session.user as Record<string, unknown>).userGuid as string | undefined;
-  if (!userGuid) {
-    throw new Error("User GUID not found in session");
-  }
-
-  const userService = await UserService.getInstance();
-  const userId = await userService.getUserIdByGuid(userGuid);
-
+  // The acting MP User_ID is resolved by the authorization gate inside
+  // getUserTools, which is also what refuses a caller with no MP security role.
   const toolService = await ToolService.getInstance();
-  const toolPaths = await toolService.getUserTools(userId);
-
-  return toolPaths;
+  return toolService.getUserTools();
 }

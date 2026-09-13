@@ -1,13 +1,11 @@
 'use server';
 
 import React from 'react';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
 import { pdf } from '@react-pdf/renderer';
 import { Packer } from 'docx';
 import { ToolService } from '@/services/toolService';
 import { AddressLabelService } from '@/services/addressLabelService';
-import { getCurrentUserIdFromSession } from '@/components/shared-actions/user';
+import { AuthorizationService } from '@/services/authorizationService';
 import type { ContactAddressRow } from '@/services/addressLabelService';
 import type { ToolParams } from '@/lib/tool-params';
 import type {
@@ -26,11 +24,26 @@ import PizZip from 'pizzip';
 import ImageModule from 'docxtemplater-image';
 import { imbBarcodeToBmp, postnetBarcodeToBmp } from '@/lib/barcode-image';
 
-async function getSession() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) throw new Error('Unauthorized');
-  return session;
+/**
+ * Authorization gate for this feature's server actions.
+ *
+ * A server action is a callable POST endpoint whether or not the page that
+ * renders it was ever fetched, so the page-level gate in the tools layout is
+ * not sufficient on its own. This replaces the previous bare session check:
+ * MP's OIDC endpoint authenticates ANY dp_Users record, and this app reads MP
+ * with its own service account, so "a session exists" proves nothing about
+ * whether the caller may see or change this data.
+ *
+ * The service layer gates again — that is deliberate defence in depth, and the
+ * per-request memoization in AuthorizationService keeps it to one MP read.
+ */
+async function requireAccess(
+  table: string,
+  operation: 'read' | 'create' | 'update' | 'delete',
+): Promise<number> {
+  return AuthorizationService.getInstance().requireSecurityRole({ table, operation });
 }
+
 
 function filterAndTransform(
   rows: ContactAddressRow[],
@@ -100,15 +113,17 @@ export async function fetchAddressLabels(
   params: ToolParams,
   config: LabelConfig
 ): Promise<FetchAddressLabelsResult> {
-  const session = await getSession();
+  await requireAccess('Contacts', 'read');
 
   const addressService = await AddressLabelService.getInstance();
 
   if (params.s && params.pageID) {
-    // Selection mode — need MP User_ID for the selection stored proc
-    const userId = await getCurrentUserIdFromSession(session);
+    // Selection mode. The acting MP User_ID for the selection stored proc comes
+    // from the gate inside getSelectionRecordIds, not from here — a selection
+    // belongs to a specific user and must not be readable on someone else's
+    // behalf.
     const toolService = await ToolService.getInstance();
-    const contactIds = await toolService.getSelectionRecordIds(params.s, userId, params.pageID);
+    const contactIds = await toolService.getSelectionRecordIds(params.s, params.pageID);
 
     if (contactIds.length === 0) {
       return { printable: [], skipped: [] };
@@ -130,7 +145,7 @@ export async function generateLabelPdf(
   labels: LabelData[],
   config: LabelConfig
 ): Promise<{ success: true; data: string } | { success: false; error: string }> {
-  await getSession();
+  await requireAccess('Contacts', 'read');
 
   const stock = getLabelStock(config.stockId);
   if (!stock) {
@@ -183,7 +198,7 @@ export async function generateLabelDocx(
   labels: LabelData[],
   config: LabelConfig
 ): Promise<{ success: true; data: string } | { success: false; error: string }> {
-  await getSession();
+  await requireAccess('Contacts', 'read');
 
   const stock = getLabelStock(config.stockId);
   if (!stock) {
@@ -229,7 +244,7 @@ export async function mergeTemplate(
   labels: LabelData[],
   config: LabelConfig
 ): Promise<{ success: true; data: string } | { success: false; error: string }> {
-  await getSession();
+  await requireAccess('Contacts', 'read');
 
   if (labels.length === 0) {
     return { success: false, error: 'No addresses to merge' };

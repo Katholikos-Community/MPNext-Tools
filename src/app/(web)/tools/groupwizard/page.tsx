@@ -1,5 +1,5 @@
 import { GroupWizard } from "./group-wizard";
-import { parseToolParams } from "@/lib/tool-params";
+import { parseToolParams } from "@/lib/tool-params.server";
 import { getMpTimezone } from "@/components/shared-actions/domain";
 
 interface GroupWizardPageProps {

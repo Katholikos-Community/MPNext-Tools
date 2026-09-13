@@ -9,6 +9,21 @@ import { handleSignOut } from "@/components/user-menu/actions";
  * unconditional way out via `handleSignOut`. It lives outside the (web) route
  * group, so it is NOT wrapped by AuthWrapper and cannot cause a redirect loop.
  */
+/**
+ * Render per request, like /signin.
+ *
+ * The nonce-based CSP is built per request (see `src/lib/security-headers.ts`)
+ * and Next reads it off the incoming request headers at render time — a
+ * prerendered page has no request, therefore no nonce, therefore a blocked
+ * bootstrap script and no hydration. The sign-out form below is this user's
+ * ONLY escape hatch from an unusable session, so it must not depend on
+ * progressive-enhancement fallbacks to work.
+ *
+ * This file is deliberately NOT a client module: route segment config is
+ * silently ignored in one.
+ */
+export const dynamic = "force-dynamic";
+
 export default function SessionErrorPage() {
   return (
     <div className="flex items-center justify-center min-h-screen px-4">

@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetSession, mockGetUserIdByGuid, mockGetUserTools } = vi.hoisted(() => ({
+const { mockGetSession, mockGetUserTools } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
-  mockGetUserIdByGuid: vi.fn(),
   mockGetUserTools: vi.fn(),
 }));
 
@@ -18,14 +17,6 @@ vi.mock('next/headers', () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
-vi.mock('@/services/userService', () => ({
-  UserService: {
-    getInstance: vi.fn().mockResolvedValue({
-      getUserIdByGuid: mockGetUserIdByGuid,
-    }),
-  },
-}));
-
 vi.mock('@/services/toolService', () => ({
   ToolService: {
     getInstance: vi.fn().mockResolvedValue({
@@ -36,6 +27,12 @@ vi.mock('@/services/toolService', () => ({
 
 import { getUserTools } from './user-tools-actions';
 
+/**
+ * Resolving the acting MP User_ID — and refusing a caller who holds no MP
+ * security role — moved into `ToolService.getUserTools`, where the
+ * authorization gate is the single source of both. What remains this action's
+ * responsibility is the dev-session guard, and not swallowing a refusal.
+ */
 describe('getUserTools', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,34 +44,24 @@ describe('getUserTools', () => {
     await expect(getUserTools()).rejects.toThrow('Unauthorized');
   });
 
-  it('should throw when userGuid is missing from session', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      user: { id: 'internal-id' },
-    });
-
-    await expect(getUserTools()).rejects.toThrow('User GUID not found');
-  });
-
-  it('should throw when user not found in MP', async () => {
+  it('passes no caller-supplied user id to the service', async () => {
     mockGetSession.mockResolvedValueOnce({
       user: { id: 'internal-id', userGuid: '550e8400-e29b-41d4-a716-446655440000' },
     });
-    mockGetUserIdByGuid.mockRejectedValueOnce(new Error('User not found'));
-
-    await expect(getUserTools()).rejects.toThrow('User not found');
-  });
-
-  it('should return tool paths when authenticated', async () => {
-    mockGetSession.mockResolvedValueOnce({
-      user: { id: 'internal-id', userGuid: '550e8400-e29b-41d4-a716-446655440000' },
-    });
-    mockGetUserIdByGuid.mockResolvedValueOnce(42);
     mockGetUserTools.mockResolvedValueOnce(['/contacts', '/events']);
 
     const result = await getUserTools();
 
-    expect(mockGetUserIdByGuid).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000');
-    expect(mockGetUserTools).toHaveBeenCalledWith(42);
+    expect(mockGetUserTools).toHaveBeenCalledWith();
     expect(result).toEqual(['/contacts', '/events']);
+  });
+
+  it('propagates a refusal from the service-layer authorization gate', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      user: { id: 'internal-id', userGuid: '550e8400-e29b-41d4-a716-446655440000' },
+    });
+    mockGetUserTools.mockRejectedValueOnce(new Error('Not authorized'));
+
+    await expect(getUserTools()).rejects.toThrow('Not authorized');
   });
 });

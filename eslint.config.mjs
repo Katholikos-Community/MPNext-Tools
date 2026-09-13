@@ -15,6 +15,31 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    /**
+     * No debug logging in application code.
+     *
+     * `console.log`/`debug`/`info` were used to dump `$filter` query params,
+     * stored-procedure parameters, PUT request bodies and full MP result sets —
+     * names, email addresses, phone numbers — into hosting and log-aggregation
+     * platforms, which typically have broader access and longer retention than
+     * the Ministry Platform database itself.
+     *
+     * `warn` and `error` stay allowed, on the rule that they log IDENTIFIERS
+     * AND SHAPE only (table, IDs, HTTP status), never record content.
+     *
+     * Generator scripts are exempt: they are CLI tools whose entire output is
+     * console-based and which never touch member data.
+     */
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/lib/providers/ministry-platform/scripts/**",
+      "**/*.test.{ts,tsx}",
+    ],
+    rules: {
+      "no-console": ["error", { allow: ["warn", "error"] }],
+    },
+  },
+  {
     files: ["**/*.test.ts", "**/*.test.tsx"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",

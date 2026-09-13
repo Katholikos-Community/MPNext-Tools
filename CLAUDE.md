@@ -157,7 +157,11 @@ export default MyComponent;            // ❌ Avoid
 9. **Use service classes in server actions** - call services from `src/services/`, not MPHelper directly from components or actions
 10. **Disambiguate ambiguous columns** - when querying tables with FK joins, prefix columns that exist in multiple tables (e.g., `Contacts.Contact_ID` not just `Contact_ID`). Use `FKColumn_TABLE.Column` to traverse foreign keys (e.g., `Contact_ID_TABLE.First_Name`). For multi-level FK traversal, chain with `_TABLE_` underscores and use a dot only before the final field (e.g., `Building_ID_TABLE_Location_ID_TABLE.Congregation_ID`). See **[Services query-patterns](.claude/references/services/query-patterns.md)** for full rules and examples.
 11. **Escape user input in filters** - always escape single quotes: `term.replace(/'/g, "''")`
-12. **Convert all date/time values at the MP boundary** - use `DomainTimezoneService` (never raw `new Date(x).toISOString()`, `` `${date}T00:00:00Z` ``, or `getFullYear()`) when sending or receiving datetime fields, since MP stores wall-clock values in the domain's time zone, not UTC. See **[Date/Time Handling Reference](.claude/references/ministryplatform.datetimehandling.md)**.
+12. **Authorize, don't just authenticate** — feature server actions **and** service methods that touch MP data call `AuthorizationService` (`requireSecurityRole`, for **reads** as well as writes), never a bare `auth.api.getSession()` check. MP's OIDC endpoint authenticates *any* `dp_Users` record, and this app reads MP with its own service account, so MP's per-user record security never applies to what it returns — "a session exists" proves nothing. Documented carve-outs, each justified in-file: `layout/auth-wrapper.tsx` (it *is* the session gate), `shared-actions/user.ts` (the user's own profile), `shared-actions/domain.ts` (one domain-wide config string), `dev-panel/panels/require-dev-session.ts` (dev-only, and the services it calls gate anyway). A fifth needs the same justification, in the file, in writing.
+13. **Write attribution has exactly one source** — `$userId` comes from the gate's return value, assembled in the **service**, never passed in by an action and never read from a caller-supplied payload. Two layers stamping it can drift, and a caller value can slip past whichever was checked second.
+14. **No debug logging in `src/`** — `no-console` is enforced by ESLint (`warn`/`error` only). Errors log **identifiers and shape** (table, IDs, HTTP status), never record content, `$filter` strings, request bodies, or response bodies — including inside thrown error messages, which travel further than logs do.
+15. **`src/lib/tool-params.ts` must stay client-safe** — it is imported by client components. Importing a service from it drags `next/headers` into the client graph and fails the Turbopack build. Server-side parsing lives in `tool-params.server.ts`; a dynamic `import()` is *not* sufficient, it still creates a graph edge.
+16. **Convert all date/time values at the MP boundary** - use `DomainTimezoneService` (never raw `new Date(x).toISOString()`, `` `${date}T00:00:00Z` ``, or `getFullYear()`) when sending or receiving datetime fields, since MP stores wall-clock values in the domain's time zone, not UTC. See **[Date/Time Handling Reference](.claude/references/ministryplatform.datetimehandling.md)**.
 
 ## Validation Best Practices
 
@@ -230,6 +234,7 @@ Agent-facing reference docs are hierarchical under `.claude/references/`. Start 
 | routing | [`.claude/references/routing/README.md`](.claude/references/routing/README.md) |
 | data-flow | [`.claude/references/data-flow/README.md`](.claude/references/data-flow/README.md) |
 | testing | [`.claude/references/testing/README.md`](.claude/references/testing/README.md) |
+| security | [`.claude/references/security/README.md`](.claude/references/security/README.md) |
 | dto-constants | [`.claude/references/dto-constants/README.md`](.claude/references/dto-constants/README.md) |
 | utils | [`.claude/references/utils/README.md`](.claude/references/utils/README.md) |
 

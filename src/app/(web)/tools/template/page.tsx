@@ -1,5 +1,5 @@
 import { TemplateTool } from "./template-tool";
-import { parseToolParams } from "@/lib/tool-params";
+import { parseToolParams } from "@/lib/tool-params.server";
 
 interface TemplatePageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;

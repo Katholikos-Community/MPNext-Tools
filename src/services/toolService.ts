@@ -1,5 +1,6 @@
 import { MPHelper } from "@/lib/providers/ministry-platform";
 import { PageData } from "@/lib/tool-params";
+import { AuthorizationService } from "@/services/authorizationService";
 import { validatePositiveInt, validateColumnName } from "@/lib/validation";
 import { MP_FETCH_BATCH_SIZE } from "@/lib/constants";
 
@@ -122,6 +123,10 @@ export class ToolService {
    * @returns Promise<PageData | null> - The page data or null if not found
    */
   public async getPageData(pageID: number): Promise<PageData | null> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'dp_Pages',
+      operation: 'read',
+    });
     try {
       // Execute stored procedure to get page data
       // DomainID is automatically injected by MP API
@@ -145,12 +150,19 @@ export class ToolService {
    * Retrieves the record IDs from a Ministry Platform selection.
    * Calls the api_Common_GetSelection stored procedure.
    *
+   * The acting user comes from the authorization gate, never from the caller:
+   * a selection belongs to a specific MP user, so accepting a `@UserID` from
+   * the request payload would let any caller read someone else's selection.
+   *
    * @param selectionId - The Selection ID
-   * @param userId - The Ministry Platform User ID
    * @param pageId - The Ministry Platform Page ID
    * @returns Promise<number[]> - Array of Record_IDs from the selection
    */
-  public async getSelectionRecordIds(selectionId: number, userId: number, pageId: number): Promise<number[]> {
+  public async getSelectionRecordIds(selectionId: number, pageId: number): Promise<number[]> {
+    const userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'dp_Selections',
+      operation: 'read',
+    });
     try {
       const result = await this.mp!.executeProcedureWithBody('api_Common_GetSelection', {
         '@SelectionID': selectionId,
@@ -178,10 +190,13 @@ export class ToolService {
    * Retrieves the tool paths for a user based on their roles.
    * Domain ID is automatically injected by the MP API.
    *
-   * @param userId - The Ministry Platform User ID
    * @returns Promise<string[]> - Array of tool paths
    */
-  public async getUserTools(userId: number): Promise<string[]> {
+  public async getUserTools(): Promise<string[]> {
+    const userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'dp_Tools',
+      operation: 'read',
+    });
     try {
       const result = await this.mp!.executeProcedureWithBody('api_Tools_GetUserTools', {
         "@UserId": userId
@@ -205,6 +220,10 @@ export class ToolService {
    * Display_Name / Table_Name and cap at 100 rows.
    */
   public async listPages(search?: string): Promise<PageLookup[]> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'dp_Pages',
+      operation: 'read',
+    });
     const result = await this.mp!.executeProcedureWithBody('api_MPNextTools_GetPages', {});
     const rows = (result?.[0] as PageLookup[] | undefined) ?? [];
 
@@ -225,6 +244,10 @@ export class ToolService {
    * credential pipeline — the MP API exposes dp_Roles directly to apiuser.
    */
   public async listRoles(search?: string): Promise<RoleLookup[]> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'dp_Roles',
+      operation: 'read',
+    });
     const term = search?.trim();
     const filter = term
       ? `Role_Name LIKE '%${term.replace(/'/g, "''")}%'`
@@ -245,7 +268,11 @@ export class ToolService {
    * credentials — this must not be reachable from production. DomainID is auto-injected
    * by the MP API.
    */
-  public async deployTool(input: DeployToolInput, userId?: number): Promise<DeployToolResult> {
+  public async deployTool(input: DeployToolInput): Promise<DeployToolResult> {
+    const $userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'dp_Tools',
+      operation: 'create',
+    });
     if (!input.toolName.trim()) throw new Error('Tool Name is required');
     if (!input.launchPage.trim()) throw new Error('Launch Page is required');
     if (input.toolName.length > 30) throw new Error('Tool Name must be 30 characters or fewer');
@@ -266,8 +293,7 @@ export class ToolService {
       '@RoleIDs': input.roleIds.length ? input.roleIds.join(',') : null,
     };
 
-    const queryParams = userId !== undefined ? { $userId: userId } : undefined;
-    const resultSets = await this.mp!.executeProcedureWithBody('api_dev_DeployTool', payload, queryParams);
+    const resultSets = await this.mp!.executeProcedureWithBody('api_dev_DeployTool', payload, { $userId });
 
     const [toolRows, pageRows, roleRows] = resultSets ?? [];
     const tool = (toolRows?.[0] as DeployedToolRow | undefined);
@@ -302,6 +328,10 @@ export class ToolService {
     contactIdField: string,
     recordIds: number[]
   ): Promise<ContactRecordResult> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     const envelope = { tableName, primaryKey, contactIdField };
 
     validateColumnName(primaryKey);

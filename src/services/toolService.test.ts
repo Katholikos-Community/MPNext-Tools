@@ -15,6 +15,33 @@ vi.mock('@/lib/providers/ministry-platform', () => {
   };
 });
 
+/**
+ * The service layer now gates every MP-touching method through
+ * AuthorizationService. Mock it so these tests exercise the service logic
+ * rather than the gate; the gate has its own tests in
+ * `authorizationService.test.ts`.
+ *
+ * The stub returns 42 as the acting MP User_ID, which is also the only source
+ * of `$userId` write attribution — so the `$userId: 42` assertions below are
+ * asserting that the service takes it from the gate rather than from a caller
+ * argument (there no longer is one).
+ */
+const { mockRequireSecurityRole, mockHasSecurityRole } = vi.hoisted(() => ({
+  mockRequireSecurityRole: vi.fn(async () => 42),
+  mockHasSecurityRole: vi.fn(async () => true),
+}));
+
+vi.mock('@/services/authorizationService', () => ({
+  AuthorizationService: {
+    getInstance: () => ({
+      requireSecurityRole: mockRequireSecurityRole,
+      hasSecurityRole: mockHasSecurityRole,
+    }),
+  },
+  UnauthorizedError: class UnauthorizedError extends Error {},
+}));
+
+
 describe('ToolService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,7 +109,7 @@ describe('ToolService', () => {
       ]);
 
       const service = await ToolService.getInstance();
-      const result = await service.getSelectionRecordIds(270, 42, 292);
+      const result = await service.getSelectionRecordIds(270, 292);
 
       expect(mockExecuteProcedureWithBody).toHaveBeenCalledWith('api_Common_GetSelection', {
         '@SelectionID': 270,
@@ -96,7 +123,7 @@ describe('ToolService', () => {
       mockExecuteProcedureWithBody.mockResolvedValueOnce([[]]);
 
       const service = await ToolService.getInstance();
-      const result = await service.getSelectionRecordIds(270, 42, 292);
+      const result = await service.getSelectionRecordIds(270, 292);
 
       expect(result).toEqual([]);
     });
@@ -109,7 +136,7 @@ describe('ToolService', () => {
       ]);
 
       const service = await ToolService.getInstance();
-      const result = await service.getSelectionRecordIds(270, 42, 292);
+      const result = await service.getSelectionRecordIds(270, 292);
 
       expect(result).toEqual([201, 202]);
     });
@@ -126,7 +153,7 @@ describe('ToolService', () => {
       ]);
 
       const service = await ToolService.getInstance();
-      const result = await service.getUserTools(42);
+      const result = await service.getUserTools();
 
       expect(mockExecuteProcedureWithBody).toHaveBeenCalledWith('api_Tools_GetUserTools', {
         '@UserId': 42,
@@ -138,7 +165,7 @@ describe('ToolService', () => {
       mockExecuteProcedureWithBody.mockResolvedValueOnce([[]]);
 
       const service = await ToolService.getInstance();
-      const result = await service.getUserTools(42);
+      const result = await service.getUserTools();
 
       expect(result).toEqual([]);
     });
@@ -147,7 +174,7 @@ describe('ToolService', () => {
       mockExecuteProcedureWithBody.mockRejectedValueOnce(new Error('Access denied'));
 
       const service = await ToolService.getInstance();
-      await expect(service.getUserTools(42)).rejects.toThrow('Access denied');
+      await expect(service.getUserTools()).rejects.toThrow('Access denied');
     });
   });
 
@@ -433,18 +460,23 @@ describe('ToolService', () => {
           '@AdditionalData': 'extra',
           '@RoleIDs': '1,5',
         },
-        undefined
+        { $userId: 42 }
       );
       expect(result.tool).toEqual(toolRow);
       expect(result.pages).toEqual([]);
       expect(result.roles).toEqual([]);
     });
 
-    it('forwards $userId as query param when userId is provided', async () => {
+    it('takes $userId from the authorization gate, not from the caller', async () => {
       mockExecuteProcedureWithBody.mockResolvedValueOnce([[toolRow], [], []]);
       const service = await ToolService.getInstance();
 
-      await service.deployTool(baseInput, 42);
+      await service.deployTool(baseInput);
+
+      expect(mockRequireSecurityRole).toHaveBeenCalledWith({
+        table: 'dp_Tools',
+        operation: 'create',
+      });
 
       expect(mockExecuteProcedureWithBody).toHaveBeenCalledWith(
         'api_dev_DeployTool',
@@ -473,7 +505,7 @@ describe('ToolService', () => {
           '@AdditionalData': null,
           '@RoleIDs': null,
         }),
-        undefined
+        { $userId: 42 }
       );
     });
 
@@ -497,7 +529,7 @@ describe('ToolService', () => {
           '@LaunchInNewTab': 1,
           '@ShowOnMobile': 1,
         }),
-        undefined
+        { $userId: 42 }
       );
     });
 

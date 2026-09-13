@@ -167,24 +167,25 @@ describe('deploy-tool-actions', () => {
       expect(result).toEqual([{ Role_ID: 1, Role_Name: 'Administrators' }]);
     });
 
-    it('deployToolAction forwards input + resolved userId to service and returns result', async () => {
+    it('deployToolAction forwards only the input — never a caller-supplied userId', async () => {
       mockGetSession.mockResolvedValueOnce(validSession);
       mockDeployTool.mockResolvedValueOnce(sampleResult);
 
       const result = await deployToolAction(sampleInput);
 
-      expect(mockGetUserIdByGuid).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000');
-      expect(mockDeployTool).toHaveBeenCalledWith(sampleInput, 42);
+      // Write attribution is stamped by the authorization gate inside
+      // ToolService.deployTool, so there is exactly one source for it and this
+      // action must not assemble one of its own.
+      expect(mockDeployTool).toHaveBeenCalledWith(sampleInput);
       expect(result).toEqual(sampleResult);
     });
 
-    it('deployToolAction rejects when userGuid missing from session', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+    it('deployToolAction propagates a refusal from the service-layer gate', async () => {
+      mockGetSession.mockResolvedValueOnce(validSession);
+      mockDeployTool.mockRejectedValueOnce(new Error('Not authorized'));
 
-      await expect(deployToolAction(sampleInput)).rejects.toThrow(
-        'User GUID not found in session'
-      );
-      expect(mockDeployTool).not.toHaveBeenCalled();
+      await expect(deployToolAction(sampleInput)).rejects.toThrow('Not authorized');
+      expect(mockDeployTool).toHaveBeenCalledWith(sampleInput);
     });
 
     it('deployToolAction propagates service errors', async () => {

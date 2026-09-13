@@ -17,6 +17,33 @@ vi.mock('@/lib/providers/ministry-platform', () => ({
   },
 }));
 
+/**
+ * The service layer now gates every MP-touching method through
+ * AuthorizationService. Mock it so these tests exercise the service logic
+ * rather than the gate; the gate has its own tests in
+ * `authorizationService.test.ts`.
+ *
+ * The stub returns 42 as the acting MP User_ID, which is also the only source
+ * of `$userId` write attribution — so the `$userId: 42` assertions below are
+ * asserting that the service takes it from the gate rather than from a caller
+ * argument (there no longer is one).
+ */
+const { mockRequireSecurityRole, mockHasSecurityRole } = vi.hoisted(() => ({
+  mockRequireSecurityRole: vi.fn(async () => 42),
+  mockHasSecurityRole: vi.fn(async () => true),
+}));
+
+vi.mock('@/services/authorizationService', () => ({
+  AuthorizationService: {
+    getInstance: () => ({
+      requireSecurityRole: mockRequireSecurityRole,
+      hasSecurityRole: mockHasSecurityRole,
+    }),
+  },
+  UnauthorizedError: class UnauthorizedError extends Error {},
+}));
+
+
 import { GroupService } from './groupService';
 import { DomainTimezoneService } from './domainTimezoneService';
 
@@ -351,7 +378,7 @@ describe('GroupService', () => {
       };
 
       const service = await GroupService.getInstance();
-      const result = await service.createGroup(formData, 42);
+      const result = await service.createGroup(formData);
 
       expect(mockCreateTableRecords).toHaveBeenCalledWith(
         'Groups',
@@ -383,7 +410,6 @@ describe('GroupService', () => {
           End_Date: '2024-12-31',
           Promotion_Date: null,
         } as any, // partial form data
-        42,
       );
 
       expect(mockUpdateTableRecords).toHaveBeenCalledWith(
@@ -413,9 +439,9 @@ describe('GroupService', () => {
       mockUpdateTableRecords.mockResolvedValue([{ Group_ID: 7, Group_Name: 'X' }]);
 
       const service = await GroupService.getInstance();
-      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any, 1);
-      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any, 1);
-      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any, 1);
+      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any);
+      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any);
+      await service.updateGroup(7, { Start_Date: '2026-05-17' } as any);
 
       for (const call of mockUpdateTableRecords.mock.calls) {
         expect((call[1][0] as { Start_Date: string }).Start_Date).toBe('2026-05-17 00:00:00');
@@ -436,7 +462,7 @@ describe('GroupService', () => {
 
       const service = await GroupService.getInstance();
       await expect(
-        service.createGroup({ Group_Name: 'Test' } as any, 1),
+        service.createGroup({ Group_Name: 'Test' } as any),
       ).rejects.toThrow('Create failed');
     });
   });

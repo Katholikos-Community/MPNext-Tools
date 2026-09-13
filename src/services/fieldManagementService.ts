@@ -1,4 +1,5 @@
 import { MPHelper } from "@/lib/providers/ministry-platform";
+import { AuthorizationService } from "@/services/authorizationService";
 import type { TableMetadata } from "@/lib/providers/ministry-platform/types/provider.types";
 
 export interface PageListItem {
@@ -41,6 +42,10 @@ export class FieldManagementService {
   }
 
   public async getPages(): Promise<PageListItem[]> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: "dp_Pages",
+      operation: "read",
+    });
     const result = await this.mp!.executeProcedureWithBody('api_MPNextTools_GetPages', {});
 
     if (result && result.length > 0 && result[0].length > 0) {
@@ -51,6 +56,10 @@ export class FieldManagementService {
   }
 
   public async getPageFields(pageId: number): Promise<PageField[]> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: "dp_Page_Fields",
+      operation: "read",
+    });
     const result = await this.mp!.executeProcedureWithBody('api_MPNextTools_GetPageFields', {
       "@PageID": pageId,
     });
@@ -63,6 +72,10 @@ export class FieldManagementService {
   }
 
   public async getTableMetadata(tableName: string): Promise<TableMetadata | null> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: "dp_Tables",
+      operation: "read",
+    });
     const tables = await this.mp!.getTables(tableName);
 
     if (tables.length === 0) return null;
@@ -86,10 +99,17 @@ export class FieldManagementService {
       Depends_On_Field: string | null;
       Field_Label: string | null;
       Writing_Assistant_Enabled: boolean;
-    }[],
-    userId?: number
+    }[]
   ): Promise<void> {
-    const queryParams = userId !== undefined ? { $userId: userId } : undefined;
+    // Gate FIRST, and take write attribution from its return value. This is a
+    // domain-wide configuration write — it changes page layout for every user
+    // in the MP domain, not just the caller — so it must never run on a bare
+    // "a session exists" check.
+    const $userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: "dp_Page_Fields",
+      operation: "update",
+    });
+    const queryParams = { $userId };
 
     for (let i = 0; i < fields.length; i += FieldManagementService.CONCURRENCY) {
       const batch = fields.slice(i, i + FieldManagementService.CONCURRENCY);

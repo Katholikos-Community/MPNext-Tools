@@ -49,9 +49,6 @@ export class MinistryPlatformClient {
      * @throws Error if token refresh fails
      */
     public async ensureValidToken(): Promise<void> {
-        logger.debug("Checking token validity...");
-        logger.debug("Expires at:", this.expiresAt);
-        logger.debug("Current time:", new Date());
 
         if (this.expiresAt >= new Date()) return;
 
@@ -59,7 +56,6 @@ export class MinistryPlatformClient {
         // starts the refresh; subsequent callers await the same in-flight promise.
         if (this.refreshPromise) return this.refreshPromise;
 
-        logger.debug("Token expired, refreshing...");
 
         this.refreshPromise = (async () => {
             try {
@@ -67,7 +63,6 @@ export class MinistryPlatformClient {
                 this.token = creds.access_token;
                 this.expiresAt = new Date(Date.now() + TOKEN_LIFE);
 
-                logger.debug("Token refreshed. Expires at:", this.expiresAt);
             } catch (error) {
                 logger.error("Failed to refresh token:", error);
                 throw error;
@@ -85,16 +80,12 @@ export class MinistryPlatformClient {
      * @throws Error if token refresh fails or dev credentials are not configured
      */
     public async ensureValidDevToken(): Promise<void> {
-        logger.debug("Checking dev token validity...");
-        logger.debug("Dev expires at:", this.devExpiresAt);
-        logger.debug("Current time:", new Date());
 
         if (this.devExpiresAt >= new Date()) return;
 
         // Dedup concurrent callers on the dev pipeline (symmetric with default pipeline).
         if (this.devRefreshPromise) return this.devRefreshPromise;
 
-        logger.debug("Dev token expired, refreshing...");
 
         this.devRefreshPromise = (async () => {
             try {
@@ -102,7 +93,6 @@ export class MinistryPlatformClient {
                 this.devToken = creds.access_token;
                 this.devExpiresAt = new Date(Date.now() + TOKEN_LIFE);
 
-                logger.debug("Dev token refreshed. Expires at:", this.devExpiresAt);
             } catch (error) {
                 logger.error("Failed to refresh dev token:", error);
                 throw error;

@@ -18,7 +18,11 @@ vi.mock('@/services/toolService', () => ({
   },
 }));
 
-import { parseToolParams, isNewRecord, isEditMode, type PageData } from './tool-params';
+// `parseToolParams` moved to the server-only module: `./tool-params` must stay
+// client-safe, so it can no longer import ToolService (which drags in
+// `next/headers`). The types and pure helpers still live in `./tool-params`.
+import { isNewRecord, isEditMode, type PageData } from './tool-params';
+import { parseToolParams } from './tool-params.server';
 import { ToolService } from '@/services/toolService';
 
 describe('tool-params', () => {

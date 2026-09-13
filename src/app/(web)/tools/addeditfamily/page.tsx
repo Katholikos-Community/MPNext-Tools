@@ -1,5 +1,5 @@
 import { AddEditFamily } from "./add-edit-family";
-import { parseToolParams } from "@/lib/tool-params";
+import { parseToolParams } from "@/lib/tool-params.server";
 import { FamilyService } from "@/services/familyService";
 
 interface AddEditFamilyPageProps {
