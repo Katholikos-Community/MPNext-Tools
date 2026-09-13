@@ -5,9 +5,9 @@ const mockGetSelectionRecordIds = vi.hoisted(() => vi.fn());
 const mockGetAddressesForContacts = vi.hoisted(() => vi.fn());
 const mockGetAddressForContact = vi.hoisted(() => vi.fn());
 const mockToBlob = vi.hoisted(() => vi.fn());
-const mockGetUserIdByGuid = vi.hoisted(() => vi.fn());
 const mockDocxtemplaterRender = vi.hoisted(() => vi.fn());
 const mockDocxtemplaterGetZip = vi.hoisted(() => vi.fn());
+const mockImageModuleCtor = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/auth', () => ({
   auth: {
@@ -56,14 +56,6 @@ vi.mock('@/services/toolService', () => ({
   },
 }));
 
-vi.mock('@/services/userService', () => ({
-  UserService: {
-    getInstance: vi.fn().mockResolvedValue({
-      getUserIdByGuid: mockGetUserIdByGuid,
-    }),
-  },
-}));
-
 vi.mock('@/services/addressLabelService', () => ({
   AddressLabelService: {
     getInstance: vi.fn().mockResolvedValue({
@@ -100,7 +92,11 @@ vi.mock('pizzip', () => ({
 }));
 
 vi.mock('docxtemplater-image', () => ({
-  default: class {},
+  default: class {
+    constructor(...args: unknown[]) {
+      mockImageModuleCtor(...args);
+    }
+  },
 }));
 
 vi.mock('@/lib/barcode-helpers', () => ({
@@ -117,6 +113,18 @@ vi.mock('@/lib/barcode-image', () => ({
 import { fetchAddressLabels, generateLabelPdf, mergeTemplate } from './actions';
 import type { LabelConfig, LabelData } from '@/lib/dto';
 import type { ToolParams } from '@/lib/tool-params';
+
+/**
+ * These tests deliberately drive failure paths, and the code under test logs
+ * them on purpose. Silence the channel so a real, unexpected error still
+ * stands out in the runner output instead of drowning in expected noise.
+ * `mockImplementation` keeps the spy recording, so assertions on what was
+ * logged still work.
+ */
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
 
 describe('fetchAddressLabels', () => {
   const defaultConfig: LabelConfig = {
@@ -301,6 +309,51 @@ describe('fetchAddressLabels', () => {
     expect(result.skipped).toHaveLength(1);
     expect(result.skipped[0].reason).toBe('no_barcode');
   });
+
+  it('returns empty results when neither selection nor recordID params are provided', async () => {
+    const params: ToolParams = {};
+    const result = await fetchAddressLabels(params, defaultConfig);
+    expect(result).toEqual({ printable: [], skipped: [] });
+  });
+
+  it('returns empty results in selection mode when the selection has no records', async () => {
+    mockGetSelectionRecordIds.mockResolvedValue([]);
+    const params: ToolParams = { pageID: 292, s: 1, sc: 0 };
+    const result = await fetchAddressLabels(params, defaultConfig);
+    expect(result).toEqual({ printable: [], skipped: [] });
+    expect(mockGetAddressesForContacts).not.toHaveBeenCalled();
+  });
+
+  it('returns empty results in recordID mode when the contact address lookup finds nothing', async () => {
+    mockGetAddressForContact.mockResolvedValue(undefined);
+    const params: ToolParams = { recordID: 7 };
+    const result = await fetchAddressLabels(params, defaultConfig);
+    expect(result).toEqual({ printable: [], skipped: [] });
+  });
+
+  it('sorts multiple printable results by postal code', async () => {
+    mockGetSelectionRecordIds.mockResolvedValue([1, 2]);
+    mockGetAddressesForContacts.mockResolvedValue([
+      {
+        Contact_ID: 1, Display_Name: 'Zeta Person', Household_ID: null,
+        Household_Name: null, Bulk_Mail_Opt_Out: false,
+        Address_Line_1: '1 Z St', City: 'Zeta', 'State/Region': 'TX',
+        Postal_Code: '99999', Bar_Code: '01234567094987654321',
+      },
+      {
+        Contact_ID: 2, Display_Name: 'Alpha Person', Household_ID: null,
+        Household_Name: null, Bulk_Mail_Opt_Out: false,
+        Address_Line_1: '1 A St', City: 'Alpha', 'State/Region': 'TX',
+        Postal_Code: '10000', Bar_Code: '01234567094987654321',
+      },
+    ]);
+
+    const params: ToolParams = { pageID: 292, s: 1, sc: 2 };
+    const config: LabelConfig = { ...defaultConfig, addressMode: 'individual' };
+    const result = await fetchAddressLabels(params, config);
+
+    expect(result.printable.map((p) => p.postalCode)).toEqual(['10000', '99999']);
+  });
 });
 
 describe('generateLabelPdf', () => {
@@ -356,6 +409,14 @@ describe('generateLabelPdf', () => {
     if (!result.success) {
       expect(result.error).toContain('No labels to print');
     }
+  });
+
+  it('returns a validation error and skips PDF rendering for an invalid IMb mailerId', async () => {
+    const labels: LabelData[] = [{ name: 'Test', addressLine1: '123 Main', city: 'Test', state: 'TX', postalCode: '75001' }];
+    const result = await generateLabelPdf(labels, { ...pdfConfig, barcodeFormat: 'imb', mailerId: '123' });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain('Mailer ID must be exactly 6 or 9 digits');
+    expect(mockToBlob).not.toHaveBeenCalled();
   });
 });
 
@@ -464,6 +525,47 @@ describe('mergeTemplate', () => {
     const result = await mergeTemplate(Buffer.from('x').toString('base64'), labels, mergeConfig);
     expect(result.success).toBe(true);
   });
+
+  it('returns a validation error and never renders when the IMb mailerId is invalid', async () => {
+    const labels: LabelData[] = [{ name: 'T', addressLine1: 'A', city: 'C', state: 'S', postalCode: '12345' }];
+    const invalidImbConfig: LabelConfig = { ...mergeConfig, barcodeFormat: 'imb', mailerId: '123' };
+
+    const result = await mergeTemplate(Buffer.from('x').toString('base64'), labels, invalidImbConfig);
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain('Mailer ID must be exactly 6 or 9 digits');
+    expect(mockDocxtemplaterRender).not.toHaveBeenCalled();
+  });
+
+  it('accepts a valid 9-digit IMb mailerId and proceeds to render', async () => {
+    const labels: LabelData[] = [{ name: 'T', addressLine1: 'A', city: 'C', state: 'S', postalCode: '12345' }];
+    const validImbConfig: LabelConfig = { ...mergeConfig, barcodeFormat: 'imb', mailerId: '123456789' };
+
+    const result = await mergeTemplate(Buffer.from('x').toString('base64'), labels, validImbConfig);
+
+    expect(result.success).toBe(true);
+    expect(mockDocxtemplaterRender).toHaveBeenCalled();
+  });
+
+  it('resolves the getImage/getSize callbacks passed to the image module', async () => {
+    mockImageModuleCtor.mockClear();
+    const labels: LabelData[] = [{ name: 'NoKey', addressLine1: '1 A', city: 'C', state: 'S', postalCode: '12345' }];
+    const result = await mergeTemplate(Buffer.from('x').toString('base64'), labels, mergeConfig);
+    expect(result.success).toBe(true);
+
+    expect(mockImageModuleCtor).toHaveBeenCalled();
+    const [options] = mockImageModuleCtor.mock.calls[0] as [{
+      getImage: (tagValue: unknown) => Buffer;
+      getSize: (img: Buffer | string, tagValue: unknown, tagName: string) => [number, number];
+    }];
+
+    // getImage falls back to an empty buffer for a key with no matching barcode
+    expect(options.getImage('not-a-real-key')).toEqual(Buffer.alloc(0));
+    // getSize returns the Barcode-specific size for the Barcode tag...
+    expect(options.getSize(Buffer.alloc(0), 'barcode_0', 'Barcode')).toEqual([200, 25]);
+    // ...and a generic fallback size for any other tag
+    expect(options.getSize(Buffer.alloc(0), 'x', 'SomeOtherTag')).toEqual([100, 100]);
+  });
 });
 
 describe('generateLabelDocx', () => {
@@ -509,6 +611,29 @@ describe('generateLabelDocx', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toContain('No labels to export');
   });
+
+  it('returns a validation error and skips docx rendering for an invalid IMb mailerId', async () => {
+    const { generateLabelDocx } = await import('./actions');
+    const labels: LabelData[] = [{ name: 'Docx', addressLine1: '1 Docx Rd', city: 'Town', state: 'TX', postalCode: '75001' }];
+    const result = await generateLabelDocx(labels, { ...docxConfig, barcodeFormat: 'imb', mailerId: '1234' });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toContain('Mailer ID must be exactly 6 or 9 digits');
+  });
+
+  it('returns a generic error when building the docx throws', async () => {
+    const { generateLabelDocx } = await import('./actions');
+    const labels: LabelData[] = [{ name: 'Docx', addressLine1: '1 Docx Rd', city: 'Town', state: 'TX', postalCode: '75001' }];
+    const { preEncodeBarcodes } = await import('@/lib/barcode-helpers');
+    (preEncodeBarcodes as unknown as { mockImplementationOnce: (fn: unknown) => void }).mockImplementationOnce(
+      () => {
+        throw new Error('encode failure');
+      }
+    );
+
+    const result = await generateLabelDocx(labels, docxConfig);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error).toBe('encode failure');
+  });
 });
 
 describe('generateLabelPdf error branches', () => {
@@ -542,5 +667,146 @@ describe('generateLabelPdf error branches', () => {
     const result = await generateLabelPdf(labels, pdfConfig);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error).toBe('PDF generation failed');
+  });
+});
+
+/**
+ * Error-logging redaction.
+ *
+ * docxtemplater attaches the live merge scope to `err.properties.scope` when
+ * its scope parser fails. In this feature that scope IS the household list, so
+ * `console.error('mergeTemplate error:', error)` wrote every printable name
+ * and mailing address for the batch into server logs — exactly what CLAUDE.md
+ * rule 14 forbids.
+ *
+ * See `.claude/TODO/2026-09-13-mergetemplate-logs-address-pii-on-error.md`.
+ */
+describe('address-label actions redact errors before logging', () => {
+  const config: LabelConfig = {
+    stockId: '5160',
+    addressMode: 'household',
+    startPosition: 1,
+    includeMissingBarcodes: true,
+    barcodeFormat: 'postnet',
+    mailerId: '',
+    serviceType: '040',
+  };
+
+  const labels: LabelData[] = [
+    {
+      name: 'Jane Householder',
+      addressLine1: '742 Evergreen Terrace',
+      city: 'Springfield',
+      state: 'IL',
+      postalCode: '62704',
+    },
+  ];
+
+  /** Mirrors the shape docxtemplater throws on a scope-parser failure. */
+  function scopeParserError(): Error {
+    const error = new Error('Scope parser execution failed') as Error & {
+      properties?: Record<string, unknown>;
+    };
+    error.properties = {
+      id: 'scopeparser_execution_failed',
+      explanation: 'The tag {Name} failed to parse',
+      scope: labels.map((l) => ({
+        Name: l.name,
+        AddressLine1: l.addressLine1,
+        City: l.city,
+        State: l.state,
+        PostalCode: l.postalCode,
+      })),
+    };
+    return error;
+  }
+
+  function loggedText(): string {
+    const spy = console.error as unknown as { mock: { calls: unknown[][] } };
+    return JSON.stringify(spy.mock.calls);
+  }
+
+  beforeEach(() => {
+    mockRequireSecurityRole.mockResolvedValue(42);
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } });
+  });
+
+  it('never writes the merge scope — household names and addresses — to the log', async () => {
+    mockDocxtemplaterRender.mockImplementationOnce(() => {
+      throw scopeParserError();
+    });
+
+    await mergeTemplate(Buffer.from('x').toString('base64'), labels, config);
+
+    const logged = loggedText();
+    expect(logged).not.toContain('Jane Householder');
+    expect(logged).not.toContain('742 Evergreen Terrace');
+    expect(logged).not.toContain('Springfield');
+    expect(logged).not.toContain('62704');
+
+    // The word "scope" legitimately appears inside the safe identifiers
+    // ("scopeparser_execution_failed"), so assert on the KEY, not the text:
+    // no `scope` property may survive into the logged object.
+    const spy = console.error as unknown as { mock: { calls: unknown[][] } };
+    const payload = spy.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+    expect(payload).not.toHaveProperty('scope');
+    expect(Object.keys(payload).sort()).toEqual(['explanation', 'id', 'message', 'name']);
+  });
+
+  it('still logs the identifiers needed to diagnose the failure', async () => {
+    mockDocxtemplaterRender.mockImplementationOnce(() => {
+      throw scopeParserError();
+    });
+
+    await mergeTemplate(Buffer.from('x').toString('base64'), labels, config);
+
+    expect(console.error).toHaveBeenCalledWith('mergeTemplate error:', {
+      name: 'Error',
+      message: 'Scope parser execution failed',
+      id: 'scopeparser_execution_failed',
+      explanation: 'The tag {Name} failed to parse',
+    });
+  });
+
+  it('describes a non-Error throw by shape rather than value', async () => {
+    mockDocxtemplaterRender.mockImplementationOnce(() => {
+      // A thrown string could itself be attacker- or data-derived.
+      throw 'Jane Householder, 742 Evergreen Terrace';
+    });
+
+    await mergeTemplate(Buffer.from('x').toString('base64'), labels, config);
+
+    expect(console.error).toHaveBeenCalledWith('mergeTemplate error:', {
+      name: 'NonError',
+      type: 'string',
+    });
+    expect(loggedText()).not.toContain('Evergreen');
+  });
+
+  it('omits properties that are absent rather than logging undefined keys', async () => {
+    mockDocxtemplaterRender.mockImplementationOnce(() => {
+      throw new Error('plain failure');
+    });
+
+    await mergeTemplate(Buffer.from('x').toString('base64'), labels, config);
+
+    expect(console.error).toHaveBeenCalledWith('mergeTemplate error:', {
+      name: 'Error',
+      message: 'plain failure',
+    });
+  });
+
+  it('applies the same redaction in generateLabelPdf', async () => {
+    mockToBlob.mockRejectedValueOnce(scopeParserError());
+
+    await generateLabelPdf(labels, config);
+
+    const logged = loggedText();
+    expect(logged).not.toContain('Jane Householder');
+    expect(logged).not.toContain('Evergreen');
+    expect(console.error).toHaveBeenCalledWith(
+      'generateLabelPdf error:',
+      expect.objectContaining({ id: 'scopeparser_execution_failed' }),
+    );
   });
 });

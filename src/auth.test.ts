@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parseAdditionalUserInput } from 'better-auth/db';
 import {
+  auth,
   userAdditionalFields,
   disabledAuthPaths,
   syntheticEmailForSub,
@@ -19,6 +20,18 @@ import {
  * - mapProfileToUser: stores the OAuth sub claim as userGuid (additionalField)
  * - User profile loading is handled client-side by UserProvider
  */
+
+/**
+ * These tests deliberately drive failure paths, and the code under test logs
+ * them on purpose. Silence the channel so a real, unexpected error still
+ * stands out in the runner output instead of drowning in expected noise.
+ * `mockImplementation` keeps the spy recording, so assertions on what was
+ * logged still work.
+ */
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
 
 describe('Auth - Custom Session Enrichment Logic', () => {
   beforeEach(() => {
@@ -274,6 +287,76 @@ describe('Auth - disabled endpoints', () => {
     ]) {
       expect(disabledAuthPaths).toContain(path);
     }
+  });
+});
+
+/**
+ * F-UPDATE-USER, enforcement half — the paths must 404 at the Better Auth
+ * ROUTER, not merely appear in an exported array.
+ *
+ * The `disabledAuthPaths` assertions above check a constant. They pass even if
+ * `disabledPaths: disabledAuthPaths` is deleted from the `betterAuth()` options,
+ * because nothing ties the array to the running router — verified by removing
+ * that line and watching the whole suite stay green. That is the exact failure
+ * mode this advisory's root cause describes: a protection silently stops being
+ * applied and no test notices.
+ *
+ * `src/app/api/auth/[...all]/route.test.ts` does not cover this either. It mocks
+ * `@/lib/auth` to `{}` and mocks `toNextJsHandler`, so it exercises the allowlist
+ * WRAPPER against a stub — correct for what it tests, but it never reaches real
+ * Better Auth.
+ *
+ * So these drive `auth.handler` directly with real `Request`s, deliberately
+ * BYPASSING Next.js routing and the allowlist. The allowlist is the primary
+ * control and sits in front of this; `disabledPaths` is the defence in depth
+ * behind it, and this is the only place that proves the latter is wired in.
+ * Both must hold independently — the advisory is explicit that the allowlist is
+ * an addition, not a replacement.
+ *
+ * Matched in the router's `onRequest`, these 404 before rate limiting, plugins
+ * and `sessionMiddleware` — so no session is needed to prove the refusal.
+ */
+describe('Auth - disabled endpoints 404 at the router', () => {
+  const url = (path: string) => `http://localhost:3000/api/auth${path}`;
+
+  it('404s POST /update-user, the session-identity takeover vector', async () => {
+    const res = await auth.handler(
+      new Request(url('/update-user'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // The exact payload from the advisory: a well-formed foreign User_GUID.
+        // It must be refused on the PATH, before any body parsing — `userGuid`
+        // is necessarily `input: true`, so a validator could never tell this
+        // from `mapProfileToUser`.
+        body: JSON.stringify({ userGuid: 'ab12cd34-ef56-7890-abcd-ef1234567890' }),
+      }),
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it.each(disabledAuthPaths.filter((p) => p !== '/update-user'))(
+    '404s the other identity-mutating endpoint %s',
+    async (path) => {
+      const res = await auth.handler(new Request(url(path), { method: 'POST' }));
+
+      expect(res.status).toBe(404);
+    },
+  );
+
+  /**
+   * CONTROL — without this the block above could pass vacuously: a handler that
+   * 404s EVERYTHING (a bad base path, a broken instance) would satisfy every
+   * assertion above while proving nothing.
+   *
+   * `/get-session` is not in `disabledAuthPaths`, so it must reach the router.
+   * Asserting only "not 404" keeps this about routing rather than about what an
+   * unauthenticated session read happens to return.
+   */
+  it('CONTROL: a non-disabled path still routes', async () => {
+    const res = await auth.handler(new Request(url('/get-session')));
+
+    expect(res.status).not.toBe(404);
   });
 });
 
@@ -543,5 +626,148 @@ describe('Auth - provider account key (better-auth 1.7)', () => {
     expect(mapped.userGuid).toBe(normalized);
     expect(mapped.email).toBe(`${normalized}@mp.invalid`);
     expect(mapped.mpEmail).toBe('jane@example.org');
+  });
+});
+
+/**
+ * `getUserInfo` failure paths.
+ *
+ * Better Auth does NOT wrap `provider.getUserInfo` in a try/catch inside its
+ * callback route, so this function must return `null` rather than throw on
+ * every failure — a throw surfaces as an unhandled error instead of a clean
+ * `unable_to_get_user_info` redirect.
+ *
+ * These paths also carry a logging contract (CLAUDE.md rule 14): the userinfo
+ * body can echo profile content, so only status and shape may be logged.
+ */
+describe('Auth - getUserInfo failure handling', () => {
+  const GUID = 'ab12cd34-ef56-7890-abcd-ef1234567890';
+
+  function callGetUserInfo() {
+    const fn = ministryPlatformProviderConfig.getUserInfo;
+    if (!fn) throw new Error('getUserInfo must be declared');
+    return fn({ accessToken: 'token-abc' } as never);
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns null — never throws — when the userinfo endpoint errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 502, json: vi.fn() }),
+    );
+
+    await expect(callGetUserInfo()).resolves.toBeNull();
+  });
+
+  it('logs only the HTTP status on a failed fetch, never the body', async () => {
+    const json = vi.fn().mockResolvedValue({ secret: 'profile-content' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403, json }));
+
+    await callGetUserInfo();
+
+    expect(console.error).toHaveBeenCalledWith('auth.userinfo.fetch_failed', { status: 403 });
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it('sends the access token as a bearer credential', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: vi.fn() });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callGetUserInfo();
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers.Authorization).toBe('Bearer token-abc');
+  });
+
+  it('returns null when the profile carries no usable sub', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ email: 'someone@example.com' }),
+      }),
+    );
+
+    await expect(callGetUserInfo()).resolves.toBeNull();
+    expect(console.error).toHaveBeenCalledWith(
+      'auth.userinfo.invalid_sub',
+      expect.objectContaining({ hasSub: false }),
+    );
+  });
+
+  it('returns the normalized sub and a trimmed mpEmail on success', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({
+          sub: GUID.toUpperCase(),
+          email: '  person@church.org  ',
+        }),
+      }),
+    );
+
+    const result = (await callGetUserInfo()) as Record<string, unknown>;
+
+    expect(result.sub).toBe(GUID);
+    expect(result.mpEmail).toBe('person@church.org');
+  });
+
+  it('nulls mpEmail when the profile email is blank', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ sub: GUID, email: '   ' }),
+      }),
+    );
+
+    const result = (await callGetUserInfo()) as Record<string, unknown>;
+
+    expect(result.mpEmail).toBeNull();
+  });
+});
+
+/**
+ * `mapProfileToUser` must refuse to build a user record it cannot tie back to
+ * an MP `dp_Users` row. `getUserInfo` has already validated `sub`, so reaching
+ * the throw means the provider contract changed underneath us — failing loudly
+ * is correct there, unlike in `getUserInfo`.
+ */
+describe('Auth - mapProfileToUser', () => {
+  const GUID = 'ab12cd34-ef56-7890-abcd-ef1234567890';
+
+  function callMapProfileToUser(profile: Record<string, unknown>) {
+    const fn = ministryPlatformProviderConfig.mapProfileToUser;
+    if (!fn) throw new Error('mapProfileToUser must be declared');
+    return fn(profile as never) as Record<string, unknown>;
+  }
+
+  it('throws when the profile has no usable sub', () => {
+    expect(() => callMapProfileToUser({ email: 'x@y.z' })).toThrow(/no usable sub/i);
+  });
+
+  it('maps sub to userGuid and derives the synthetic email', () => {
+    const mapped = callMapProfileToUser({ sub: GUID });
+
+    expect(mapped.userGuid).toBe(GUID);
+    expect(mapped.email).toBe(syntheticEmailForSub(GUID));
+  });
+
+  it('passes an mpEmail through and defaults it to null', () => {
+    expect(callMapProfileToUser({ sub: GUID, mpEmail: 'real@church.org' }).mpEmail).toBe(
+      'real@church.org',
+    );
+    expect(callMapProfileToUser({ sub: GUID }).mpEmail).toBeNull();
   });
 });
