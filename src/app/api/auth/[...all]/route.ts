@@ -30,7 +30,7 @@ import { toNextJsHandler } from "better-auth/next-js";
  * loudly, which is the point.
  */
 export const allowedAuthRoutes = {
-  GET: ["/get-session", "/callback/ministry-platform"],
+  GET: ["/get-session", "/callback/ministryplatform"],
   POST: ["/sign-in/social"],
 } as const;
 

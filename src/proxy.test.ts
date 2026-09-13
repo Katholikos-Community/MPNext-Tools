@@ -74,7 +74,7 @@ describe('proxy', () => {
     });
 
     it('should allow nested /api/auth paths without session check', async () => {
-      const request = createMockRequest('/api/auth/callback/ministry-platform');
+      const request = createMockRequest('/api/auth/callback/ministryplatform');
 
       await proxy(request);
 

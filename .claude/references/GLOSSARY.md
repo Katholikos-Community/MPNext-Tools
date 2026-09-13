@@ -142,7 +142,7 @@ Helper that escapes `'` -> `''`, `%` -> `[%]`, `_` -> `[_]` before interpolating
 
 ## genericOAuth (aliases: generic OAuth plugin)
 
-Better Auth plugin wiring arbitrary OIDC providers; configured with `providerId: "ministry-platform"`, OIDC discovery URL, `offline_access` + MP all scope, `pkce: false` (MP advertises `S256` in discovery but rejects the token exchange with `invalid_grant`), `disableIdTokenNonceBinding: true` (MP omits the claim), and `realm=realm` authorization param. As of Better Auth 1.7 it registers providers as first-class **social** providers, so the callback URL is the core `/api/auth/callback/{providerId}` — not the former `/api/auth/oauth2/callback/{providerId}`.
+Better Auth plugin wiring arbitrary OIDC providers; configured with `providerId: "ministryplatform"`, OIDC discovery URL, `offline_access` + MP all scope, `pkce: false` (MP advertises `S256` in discovery but rejects the token exchange with `invalid_grant`), `disableIdTokenNonceBinding: true` (MP omits the claim), and `realm=realm` authorization param. As of Better Auth 1.7 it registers providers as first-class **social** providers, so the callback URL is the core `/api/auth/callback/{providerId}` — not the former `/api/auth/oauth2/callback/{providerId}`.
 
 **Not to be confused with:** `client credentials flow` (server-to-server, no user).
 **Defined in:** `src/lib/auth.ts:32`

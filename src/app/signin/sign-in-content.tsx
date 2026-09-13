@@ -126,7 +126,7 @@ export function SignInContent() {
         // as first-class social providers and go through core `signIn.social`.
         // Note the field is `provider`, not the old `providerId`.
         const result = authClient.signIn.social({
-          provider: "ministry-platform",
+          provider: "ministryplatform",
           callbackURL: callbackUrl,
         });
         // signIn.social() may return a Promise — attach a catch so

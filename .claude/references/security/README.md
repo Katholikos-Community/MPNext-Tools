@@ -97,7 +97,7 @@ therefore **deny-by-default**:
 
 ```
 GET   /get-session
-GET   /callback/ministry-platform
+GET   /callback/ministryplatform
 POST  /sign-in/social
 ```
 
@@ -110,7 +110,7 @@ On 1.6 the paths were `POST /sign-in/oauth2` and
 `GET /oauth2/callback/:providerId`, and `/oauth2/link` existed as the plugin's
 account-linking endpoint. None of those exist any more, and all three now 404.
 
-The `ministry-platform` segment is the `providerId` from
+The `ministryplatform` segment is the `providerId` from
 `ministryPlatformProviderConfig`. The provider id, this allowlist entry and the
 sign-in page's `signIn.social({ provider })` must all agree — `src/auth.test.ts`
 pins that.
@@ -407,10 +407,10 @@ which is a confidential client's normal posture.
 
 - **The MP OAuth client's registered redirect URI must be updated.** Better Auth
   1.7 changed the callback path, so the `redirect_uri` this app sends is now
-  `<BETTER_AUTH_URL>/api/auth/callback/ministry-platform` — previously
+  `<BETTER_AUTH_URL>/api/auth/callback/ministryplatform` — previously
   `/api/auth/oauth2/callback/ministry-platform`. Note BOTH halves changed: the
   1.7 upgrade moved `/oauth2/callback/` to `/callback/`, and the provider id was
-  renamed from `ministry-platform` to `ministry-platform`. Register the new value in the
+  renamed from `ministry-platform` to `ministryplatform`. Register the new value in the
   Ministry Platform OAuth client **before** deploying, or MP will reject the
   authorization request outright.
 - **The enforced-CSP browser walk has not been done.** Headers and nonce

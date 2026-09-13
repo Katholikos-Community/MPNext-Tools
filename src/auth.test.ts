@@ -142,12 +142,12 @@ describe('Auth - Custom Session Enrichment Logic', () => {
 describe('Auth - OAuth Configuration', () => {
   it('should configure Ministry Platform as generic OAuth provider', () => {
     const config = {
-      providerId: 'ministry-platform',
+      providerId: 'ministryplatform',
       scopes: ['openid', 'offline_access', 'http://www.thinkministry.com/dataplatform/scopes/all'],
       pkce: false,
     };
 
-    expect(config.providerId).toBe('ministry-platform');
+    expect(config.providerId).toBe('ministryplatform');
     expect(config.scopes).toContain('openid');
     expect(config.scopes).toContain('offline_access');
     expect(config.pkce).toBe(false);
@@ -408,9 +408,9 @@ describe('Auth - Ministry Platform provider config (better-auth 1.7)', () => {
 
   it('keeps the providerId the allowlist and the client both reference', () => {
     // `src/app/api/auth/[...all]/route.ts` allowlists
-    // `GET /callback/ministry-platform`, and the sign-in page calls
-    // `signIn.social({ provider: "ministry-platform" })`. All three must agree.
-    expect(ministryPlatformProviderConfig.providerId).toBe('ministry-platform');
+    // `GET /callback/ministryplatform`, and the sign-in page calls
+    // `signIn.social({ provider: "ministryplatform" })`. All three must agree.
+    expect(ministryPlatformProviderConfig.providerId).toBe('ministryplatform');
   });
 });
 

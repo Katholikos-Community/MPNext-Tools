@@ -102,7 +102,7 @@ describe('SignIn page', () => {
 
     await waitFor(() => {
       expect(mockSignInSocial).toHaveBeenCalledWith({
-        provider: 'ministry-platform',
+        provider: 'ministryplatform',
         callbackURL: '/tools/template?q=a',
       });
     });
@@ -117,7 +117,7 @@ describe('SignIn page', () => {
 
     await waitFor(() => {
       expect(mockSignInSocial).toHaveBeenCalledWith({
-        provider: 'ministry-platform',
+        provider: 'ministryplatform',
         callbackURL: '/tools/groupwizard',
       });
     });
@@ -132,7 +132,7 @@ describe('SignIn page', () => {
 
     await waitFor(() => {
       expect(mockSignInSocial).toHaveBeenCalledWith({
-        provider: 'ministry-platform',
+        provider: 'ministryplatform',
         callbackURL: '/',
       });
     });
@@ -169,7 +169,7 @@ describe('SignIn page', () => {
 
     await waitFor(() => {
       expect(mockSignInSocial).toHaveBeenCalledWith({
-        provider: 'ministry-platform',
+        provider: 'ministryplatform',
         callbackURL: '/tools/template',
       });
     });

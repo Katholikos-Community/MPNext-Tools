@@ -11,7 +11,7 @@ import type { auth } from "./auth";
  * endpoints. The client plugin — and the `signIn.oauth2` method it added — no
  * longer exist.
  *
- * Call `authClient.signIn.social({ provider: "ministry-platform" })`. Note the
+ * Call `authClient.signIn.social({ provider: "ministryplatform" })`. Note the
  * field is `provider`, not the `providerId` the old `signIn.oauth2` took.
  */
 export const authClient = createAuthClient({

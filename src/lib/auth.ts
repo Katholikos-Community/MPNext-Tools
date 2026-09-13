@@ -176,7 +176,7 @@ export function buildDisplayName(profile: unknown, fallbackEmail: string | null)
  * `disableIdTokenNonceBinding` in particular.
  */
 export const ministryPlatformProviderConfig: GenericOAuthConfig = {
-  providerId: "ministry-platform",
+  providerId: "ministryplatform",
   discoveryUrl: `${mpBaseUrl}/oauth/.well-known/openid-configuration`,
   clientId: process.env.MINISTRY_PLATFORM_CLIENT_ID!,
   clientSecret: process.env.MINISTRY_PLATFORM_CLIENT_SECRET!,

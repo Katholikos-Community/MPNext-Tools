@@ -53,8 +53,8 @@ describe('isAllowedAuthRoute', () => {
     expect(isAllowedAuthRoute('GET', url('/api/auth/sign-in/social'))).toBe(false);
   });
 
-  it('allows only the ministry-platform OAuth callback', () => {
-    expect(isAllowedAuthRoute('GET', url('/api/auth/callback/ministry-platform'))).toBe(true);
+  it('allows only the ministryplatform OAuth callback', () => {
+    expect(isAllowedAuthRoute('GET', url('/api/auth/callback/ministryplatform'))).toBe(true);
     expect(isAllowedAuthRoute('GET', url('/api/auth/callback/github'))).toBe(false);
   });
 
@@ -63,7 +63,7 @@ describe('isAllowedAuthRoute', () => {
     // paths allowlisted would leave dead entries that quietly drift.
     expect(isAllowedAuthRoute('POST', url('/api/auth/sign-in/oauth2'))).toBe(false);
     expect(
-      isAllowedAuthRoute('GET', url('/api/auth/oauth2/callback/ministry-platform')),
+      isAllowedAuthRoute('GET', url('/api/auth/oauth2/callback/ministryplatform')),
     ).toBe(false);
   });
 });
@@ -75,7 +75,7 @@ describe('catch-all handler', () => {
 
   it('routes the three endpoints the client actually uses', async () => {
     await GET(new Request(url('/api/auth/get-session')));
-    await GET(new Request(url('/api/auth/callback/ministry-platform')));
+    await GET(new Request(url('/api/auth/callback/ministryplatform')));
     await POST(new Request(url('/api/auth/sign-in/social'), { method: 'POST' }));
 
     expect(mockHandlerGet).toHaveBeenCalledTimes(2);
