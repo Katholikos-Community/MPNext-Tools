@@ -1,4 +1,5 @@
 import { MPHelper } from '@/lib/providers/ministry-platform';
+import { AuthorizationService } from '@/services/authorizationService';
 import { validatePositiveInt } from '@/lib/validation';
 import { MP_FETCH_BATCH_SIZE } from '@/lib/constants';
 
@@ -66,6 +67,12 @@ export class AddressLabelService {
    * oversized filter clauses.
    */
   async getAddressesForContacts(contactIds: number[]): Promise<ContactAddressRow[]> {
+    // Reads names and mailing addresses in bulk — the largest PII surface in
+    // this app. Authentication alone is not sufficient here.
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     if (contactIds.length === 0) return [];
 
     const results: ContactAddressRow[] = [];
@@ -92,6 +99,10 @@ export class AddressLabelService {
    * Fetch the address for a single contact. Returns null if not found.
    */
   async getAddressForContact(contactId: number): Promise<ContactAddressRow | null> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     validatePositiveInt(contactId);
 
     const rows = await this.mp!.getTableRecords<ContactAddressRow>({

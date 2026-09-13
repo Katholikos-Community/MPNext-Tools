@@ -39,13 +39,10 @@ export class ProcedureService {
         try {
             const http = await this.resolveHttpClient(procedure);
 
-            logger.debug('Executing procedure:', procedure);
-            logger.debug('Query Params:', params);
 
             const endpoint = `/procs/${encodeURIComponent(procedure)}`;
             const data = await http.get<unknown[][]>(endpoint, params);
 
-            logger.debug('Procedure results:', data);
             return data;
         } catch (error) {
             logger.error(`Error executing procedure ${procedure}:`, error);
@@ -70,14 +67,10 @@ export class ProcedureService {
         try {
             const http = await this.resolveHttpClient(procedure);
 
-            logger.debug('Executing procedure with body:', procedure);
-            logger.debug('Parameters:', parameters);
-            logger.debug('Query Params:', queryParams);
 
             const endpoint = `/procs/${encodeURIComponent(procedure)}`;
             const data = await http.post<unknown[][]>(endpoint, parameters, queryParams);
 
-            logger.debug('Procedure results:', data);
             return data;
         } catch (error) {
             logger.error(`Error executing procedure ${procedure}:`, error);

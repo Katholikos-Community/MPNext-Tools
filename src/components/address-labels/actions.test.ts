@@ -21,6 +21,33 @@ vi.mock('next/headers', () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
+/**
+ * These actions now authorize through AuthorizationService instead of a bare
+ * session check. The default implementation delegates to the same
+ * `mockGetSession` these tests already drive, so existing session-shape tests
+ * keep their meaning; tests that need the gate itself to refuse override it
+ * with `mockRequireSecurityRole.mockRejectedValueOnce(...)`.
+ */
+const mockRequireSecurityRole = vi.hoisted(() => vi.fn());
+
+vi.mock('@/services/authorizationService', () => ({
+  AuthorizationService: {
+    getInstance: () => ({
+      requireSecurityRole: mockRequireSecurityRole,
+      hasSecurityRole: async () => {
+        try {
+          await mockRequireSecurityRole();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    }),
+  },
+  UnauthorizedError: class UnauthorizedError extends Error {},
+}));
+
+
 vi.mock('@/services/toolService', () => ({
   ToolService: {
     getInstance: vi.fn().mockResolvedValue({
@@ -104,8 +131,12 @@ describe('fetchAddressLabels', () => {
 
   beforeEach(() => {
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', userGuid: '550e8400-e29b-41d4-a716-446655440000' } });
-    // getMPUserId lookup — return a User_ID for the test guid
-    mockGetUserIdByGuid.mockResolvedValue(42);
+    mockRequireSecurityRole.mockReset();
+    mockRequireSecurityRole.mockImplementation(async () => {
+      const session = await mockGetSession();
+      if (!session?.user?.id) throw new Error('Unauthorized');
+      return 42;
+    });
     mockGetSelectionRecordIds.mockReset();
     mockGetAddressesForContacts.mockReset();
     mockGetAddressForContact.mockReset();

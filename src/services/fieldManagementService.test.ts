@@ -12,6 +12,32 @@ vi.mock('@/lib/providers/ministry-platform', () => ({
   },
 }));
 
+/**
+ * The service layer now gates every MP-touching method through
+ * AuthorizationService. Mock it so these tests exercise the service logic
+ * rather than the gate; the gate has its own tests in
+ * `authorizationService.test.ts`, and refusal behaviour is asserted there.
+ *
+ * The stub returns 42 as the acting MP User_ID, which is also the only source
+ * of `$userId` write attribution — so assertions on `$userId` below are
+ * asserting that the service takes it from the gate.
+ */
+const { mockRequireSecurityRole, mockHasSecurityRole } = vi.hoisted(() => ({
+  mockRequireSecurityRole: vi.fn(async () => 42),
+  mockHasSecurityRole: vi.fn(async () => true),
+}));
+
+vi.mock('@/services/authorizationService', () => ({
+  AuthorizationService: {
+    getInstance: () => ({
+      requireSecurityRole: mockRequireSecurityRole,
+      hasSecurityRole: mockHasSecurityRole,
+    }),
+  },
+  UnauthorizedError: class UnauthorizedError extends Error {},
+}));
+
+
 import { FieldManagementService } from './fieldManagementService';
 
 describe('FieldManagementService', () => {
@@ -234,16 +260,21 @@ describe('FieldManagementService', () => {
           '@FieldLabel': 'Label',
           '@WritingAssistantEnabled': true,
         },
-        undefined
+        { $userId: 42 }
       );
     });
 
-    it('should forward $userId as query param when userId is provided', async () => {
+    it('takes $userId from the authorization gate, not from the caller', async () => {
       mockExecuteProcedureWithBody.mockResolvedValue(undefined);
       const field = makeField(1);
 
       const service = await FieldManagementService.getInstance();
-      await service.updatePageFieldOrder([field], 42);
+      await service.updatePageFieldOrder([field]);
+
+      expect(mockRequireSecurityRole).toHaveBeenCalledWith({
+        table: 'dp_Page_Fields',
+        operation: 'update',
+      });
 
       expect(mockExecuteProcedureWithBody).toHaveBeenCalledWith(
         'api_MPNextTools_UpdatePageFieldOrder',

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ToolContainer } from "@/components/tool";
 import { Users } from "lucide-react";
@@ -15,19 +15,10 @@ export function TemplateTool({ params }: TemplateToolProps) {
   const [isSaving, setIsSaving] = useState(false);
   const isNew = isNewRecord(params);
 
-  useEffect(() => {
-    console.log("Tool launched with params:", params);
-    console.log("Mode:", isNew ? "Create New" : "Edit Existing");
-    if (params.recordDescription) {
-      console.log("Editing record:", params.recordDescription);
-    }
-  }, [params, isNew]);
-
   const handleSave = async () => {
     setIsSaving(true);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setIsSaving(false);
-    console.log("Saved!", { params });
   };
 
   const handleClose = () => {

@@ -1,4 +1,5 @@
 import { MPHelper } from '@/lib/providers/ministry-platform';
+import { AuthorizationService } from '@/services/authorizationService';
 import { escapeFilterString, validatePositiveInt } from '@/lib/validation';
 import { DomainTimezoneService } from '@/services/domainTimezoneService';
 import type {
@@ -56,6 +57,10 @@ export class GroupService {
   }
 
   async fetchAllLookups(): Promise<GroupWizardLookups> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Groups',
+      operation: 'read',
+    });
     const [
       groupTypes,
       ministries,
@@ -160,6 +165,11 @@ export class GroupService {
   }
 
   async searchContacts(term: string): Promise<ContactSearchResult[]> {
+    // Reads names and email addresses for every contact matching the term.
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     const escaped = escapeFilterString(term);
     return this.mp!.getTableRecords<ContactSearchResult>({
       table: 'Contacts',
@@ -171,6 +181,10 @@ export class GroupService {
   }
 
   async searchGroups(term: string): Promise<GroupSearchResult[]> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Groups',
+      operation: 'read',
+    });
     const escaped = escapeFilterString(term);
     return this.mp!.getTableRecords<GroupSearchResult>({
       table: 'Groups',
@@ -182,6 +196,10 @@ export class GroupService {
   }
 
   async getGroup(groupId: number): Promise<GetGroupResult | null> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Groups',
+      operation: 'read',
+    });
     // Select all scalar fields plus display-name joins via FK table traversal.
     // Aliases (AS) keep the joined names on known keys so edit-mode can seed
     // the contact/group display maps without a second round trip.
@@ -272,12 +290,16 @@ export class GroupService {
 
   async createGroup(
     data: GroupWizardFormData,
-    userId: number,
   ): Promise<{ Group_ID: number; Group_Name: string }> {
+    // Gate FIRST; its return value is the ONLY source of write attribution.
+    const $userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Groups',
+      operation: 'create',
+    });
     const apiData = await prepareForApi(data);
     const result = await this.mp!.createTableRecords('Groups', [apiData], {
       $select: 'Group_ID, Group_Name',
-      $userId: userId,
+      $userId,
     });
     return result[0] as unknown as { Group_ID: number; Group_Name: string };
   }
@@ -285,8 +307,11 @@ export class GroupService {
   async updateGroup(
     groupId: number,
     data: Partial<GroupWizardFormData>,
-    userId: number,
   ): Promise<{ Group_ID: number; Group_Name: string }> {
+    const $userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Groups',
+      operation: 'update',
+    });
     const apiData = {
       Group_ID: groupId,
       ...(await prepareForApi(data as GroupWizardFormData)),
@@ -294,7 +319,7 @@ export class GroupService {
     const result = await this.mp!.updateTableRecords('Groups', [apiData], {
       partial: true,
       $select: 'Group_ID, Group_Name',
-      $userId: userId,
+      $userId,
     });
     return result[0] as unknown as { Group_ID: number; Group_Name: string };
   }

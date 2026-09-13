@@ -28,6 +28,42 @@ vi.mock('next/headers', () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
 }));
 
+/**
+ * These actions now authorize through AuthorizationService instead of a bare
+ * session check.
+ *
+ * The default implementation (set in beforeEach) delegates to the same
+ * `mockGetSession` these tests already drive, so every existing session-shape
+ * test keeps its original meaning. Tests that need the gate itself to refuse —
+ * as opposed to the session being absent — override it with
+ * `mockRequireSecurityRole.mockRejectedValueOnce(...)`.
+ *
+ * 42 is the acting MP User_ID and the ONLY source of write attribution, so
+ * assertions that a service was called WITHOUT a userId argument are asserting
+ * exactly that.
+ */
+const { mockRequireSecurityRole } = vi.hoisted(() => ({
+  mockRequireSecurityRole: vi.fn(),
+}));
+
+vi.mock('@/services/authorizationService', () => ({
+  AuthorizationService: {
+    getInstance: () => ({
+      requireSecurityRole: mockRequireSecurityRole,
+      hasSecurityRole: async () => {
+        try {
+          await mockRequireSecurityRole();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    }),
+  },
+  UnauthorizedError: class UnauthorizedError extends Error {},
+}));
+
+
 vi.mock('@/services/fieldManagementService', () => ({
   FieldManagementService: {
     getInstance: mockGetInstance,
@@ -47,6 +83,11 @@ const authedSession = {
 describe('field-management actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  mockRequireSecurityRole.mockImplementation(async () => {
+    const session = await mockGetSession();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+    return 42;
+  });
     mockGetInstance.mockResolvedValue({
       getPages: mockGetPages,
       getPageFields: mockGetPageFields,
@@ -73,7 +114,7 @@ describe('field-management actions', () => {
     });
 
     it('should return pages when authorized', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       const pages = [
         { Page_ID: 292, Display_Name: 'Contacts', Table_Name: 'Contacts' },
       ];
@@ -94,7 +135,7 @@ describe('field-management actions', () => {
     });
 
     it('should tag fields with isSeparator:false when tableMetadata is null', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       const fields = [
         {
           Page_Field_ID: 1,
@@ -121,7 +162,7 @@ describe('field-management actions', () => {
     });
 
     it('should merge unmapped columns from tableMetadata.Columns (skipping IsPrimaryKey)', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([
         {
           Page_Field_ID: 1,
@@ -156,7 +197,7 @@ describe('field-management actions', () => {
     });
 
     it('should assign negative IDs starting at -1 and decrementing for new fields', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([]);
       mockGetTableMetadata.mockResolvedValueOnce({
         Table_Name: 'Contacts',
@@ -173,7 +214,7 @@ describe('field-management actions', () => {
     });
 
     it('should assign sequential View_Order starting at maxViewOrder + 1', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([
         {
           Page_Field_ID: 1,
@@ -205,7 +246,7 @@ describe('field-management actions', () => {
     });
 
     it('should skip primary key columns', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([]);
       mockGetTableMetadata.mockResolvedValueOnce({
         Table_Name: 'Contacts',
@@ -222,7 +263,7 @@ describe('field-management actions', () => {
     });
 
     it('should tag existing page field as isSeparator when matching column DataType is Separator', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([
         {
           Page_Field_ID: 1,
@@ -271,7 +312,7 @@ describe('field-management actions', () => {
     });
 
     it('should auto-add Separator columns missing from dp_Page_Fields with isSeparator:true', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([
         {
           Page_Field_ID: 1,
@@ -312,7 +353,7 @@ describe('field-management actions', () => {
     });
 
     it('should force Separator auto-add to Required:false even when IsRequired is true in metadata', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([]);
       mockGetTableMetadata.mockResolvedValueOnce({
         Table_Name: 'Contacts',
@@ -329,7 +370,7 @@ describe('field-management actions', () => {
     });
 
     it('should leave page fields not in metadata tagged isSeparator:false', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([
         {
           Page_Field_ID: 1,
@@ -358,7 +399,7 @@ describe('field-management actions', () => {
     });
 
     it('should skip columns with names already in fields', async () => {
-      mockGetSession.mockResolvedValueOnce({ user: { id: 'internal-id' } });
+      mockGetSession.mockResolvedValueOnce(authedSession);
       mockGetPageFields.mockResolvedValueOnce([
         {
           Page_Field_ID: 1,
@@ -407,14 +448,14 @@ describe('field-management actions', () => {
       },
     ];
 
-    it('should return success:true when service succeeds and forward userId', async () => {
+    it('should return success:true and pass no caller-supplied userId to the service', async () => {
       mockGetSession.mockResolvedValueOnce(authedSession);
       mockUpdatePageFieldOrder.mockResolvedValueOnce(undefined);
 
       const result = await savePageFieldOrder(samplePayload);
 
       expect(result).toEqual({ success: true });
-      expect(mockUpdatePageFieldOrder).toHaveBeenCalledWith(samplePayload, 42);
+      expect(mockUpdatePageFieldOrder).toHaveBeenCalledWith(samplePayload);
     });
 
     it('should return success:false with error message when service throws an Error', async () => {

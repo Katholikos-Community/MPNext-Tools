@@ -1,10 +1,8 @@
 "use server";
 
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { FamilyService, PartialSaveError } from "@/services/familyService";
+import { AuthorizationService } from "@/services/authorizationService";
 import { GooglePlacesService } from "@/services/googlePlacesService";
-import { getCurrentUserIdFromSession } from "@/components/shared-actions/user";
 import type {
   ContactSearchResult,
   FamilyDefaults,
@@ -16,26 +14,41 @@ import type { PlacePrediction, PlaceDetails } from "@/lib/providers/google-place
 
 export type ActionError = { success: false; error: string; progress?: SaveProgress };
 
-async function getSession() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) throw new Error("Unauthorized");
-  return session;
+/**
+ * Authorization gate for this feature's server actions.
+ *
+ * A server action is a callable POST endpoint whether or not the page that
+ * renders it was ever fetched, so the page-level gate in the tools layout is
+ * not sufficient on its own. This replaces the previous bare session check:
+ * MP's OIDC endpoint authenticates ANY dp_Users record, and this app reads MP
+ * with its own service account, so "a session exists" proves nothing about
+ * whether the caller may see or change this data.
+ *
+ * The service layer gates again — that is deliberate defence in depth, and the
+ * per-request memoization in AuthorizationService keeps it to one MP read.
+ */
+async function requireAccess(
+  table: string,
+  operation: "read" | "create" | "update" | "delete",
+): Promise<number> {
+  return AuthorizationService.getInstance().requireSecurityRole({ table, operation });
 }
 
+
 export async function searchContacts(term: string): Promise<ContactSearchResult[]> {
-  await getSession();
+  await requireAccess("Contacts", "read");
   const service = await FamilyService.getInstance();
   return service.searchContacts(term);
 }
 
 export async function fetchFamilyLookups(): Promise<FamilyLookups> {
-  await getSession();
+  await requireAccess("Contacts", "read");
   const service = await FamilyService.getInstance();
   return service.getLookups();
 }
 
 export async function fetchFamilyDefaults(): Promise<FamilyDefaults> {
-  await getSession();
+  await requireAccess("Contacts", "read");
   const service = await FamilyService.getInstance();
   return service.getDefaults();
 }
@@ -44,7 +57,7 @@ export async function fetchHousehold(
   contactId: number,
 ): Promise<{ success: true; household: Household } | ActionError> {
   try {
-    await getSession();
+    await requireAccess("Households", "read");
     const service = await FamilyService.getInstance();
     const household = await service.getHousehold(contactId);
     if (!household) return { success: false, error: "Household not found" };
@@ -64,7 +77,7 @@ export async function resolveContactIdFromPage(args: {
   contactIdField: string;
 }): Promise<{ success: true; contactId: number | null } | ActionError> {
   try {
-    await getSession();
+    await requireAccess(args.tableName, "read");
     const service = await FamilyService.getInstance();
     const contactId = await service.resolveContactIdFromPage(
       args.tableName,
@@ -82,13 +95,13 @@ export async function resolveContactIdFromPage(args: {
 }
 
 export async function fetchNextEnvelopeNumber(): Promise<number> {
-  await getSession();
+  await requireAccess("Contacts", "read");
   const service = await FamilyService.getInstance();
   return service.getNextEnvelopeNumber();
 }
 
 export async function placesEnabled(): Promise<boolean> {
-  await getSession();
+  await requireAccess("Addresses", "read");
   const service = await GooglePlacesService.getInstance();
   return service.isEnabled();
 }
@@ -97,7 +110,7 @@ export async function placeAutocomplete(
   input: string,
   sessionToken: string,
 ): Promise<PlacePrediction[]> {
-  await getSession();
+  await requireAccess("Addresses", "read");
   if (input.trim().length < 3) return [];
   const service = await GooglePlacesService.getInstance();
   if (!(await service.isEnabled())) return [];
@@ -109,7 +122,7 @@ export async function placeDetails(
   sessionToken: string,
 ): Promise<{ success: true; details: PlaceDetails } | ActionError> {
   try {
-    await getSession();
+    await requireAccess("Addresses", "read");
     const service = await GooglePlacesService.getInstance();
     const details = await service.getPlaceDetails(placeId, sessionToken);
     return { success: true, details };
@@ -125,10 +138,9 @@ export async function saveFamily(
   household: Household,
 ): Promise<{ success: true; progress: SaveProgress } | ActionError> {
   try {
-    const session = await getSession();
-    const userId = await getCurrentUserIdFromSession(session);
+    await requireAccess("Households", "update");
     const service = await FamilyService.getInstance();
-    const progress = await service.saveHousehold(household, userId);
+    const progress = await service.saveHousehold(household);
     return { success: true, progress };
   } catch (error) {
     if (error instanceof PartialSaveError) {

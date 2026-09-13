@@ -1,5 +1,5 @@
 import { FieldManagement } from "./field-management";
-import { parseToolParams } from "@/lib/tool-params";
+import { parseToolParams } from "@/lib/tool-params.server";
 
 interface FieldManagementPageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;

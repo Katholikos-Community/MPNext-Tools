@@ -1,4 +1,5 @@
 import { MPHelper } from "@/lib/providers/ministry-platform";
+import { AuthorizationService } from "@/services/authorizationService";
 import { escapeFilterString, validatePositiveInt, validateColumnName } from "@/lib/validation";
 import { DomainTimezoneService } from "@/services/domainTimezoneService";
 import type {
@@ -100,6 +101,10 @@ export class FamilyService {
   }
 
   async searchContacts(term: string): Promise<ContactSearchResult[]> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     const trimmed = term.trim();
     if (trimmed.length < 2) return [];
     const escaped = escapeFilterString(trimmed);
@@ -138,6 +143,10 @@ export class FamilyService {
     recordId: number,
     contactIdField: string,
   ): Promise<number | null> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: tableName,
+      operation: 'read',
+    });
     validatePositiveInt(recordId);
     validateColumnName(primaryKey);
     const fkPath = contactIdField.trim();
@@ -159,6 +168,10 @@ export class FamilyService {
   }
 
   async getHousehold(contactId: number): Promise<Household | null> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Households',
+      operation: 'read',
+    });
     validatePositiveInt(contactId);
 
     const contactRows = await this.mp!.getTableRecords<{
@@ -302,6 +315,10 @@ export class FamilyService {
   }
 
   async getLookups(): Promise<FamilyLookups> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     type Row<K extends string, N extends string> = Record<K, number> & Record<N, string>;
     const [
       congregations,
@@ -414,6 +431,10 @@ export class FamilyService {
   }
 
   async getNextEnvelopeNumber(): Promise<number> {
+    await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Contacts',
+      operation: 'read',
+    });
     // MAX() returns a single row even on an empty table — both ORDER BY DESC
     // TOP 1 and MAX() walk the index, but MAX is one round-trip with one row.
     // Note: Donors has no Congregation_ID column, so envelope numbers are
@@ -427,7 +448,13 @@ export class FamilyService {
     return highest + 1;
   }
 
-  async saveHousehold(household: Household, userId: number): Promise<SaveProgress> {
+  async saveHousehold(household: Household): Promise<SaveProgress> {
+    // Gate FIRST; its return value is the ONLY source of write attribution for
+    // every record this multi-step save touches.
+    const userId = await AuthorizationService.getInstance().requireSecurityRole({
+      table: 'Households',
+      operation: 'update',
+    });
     const progress: SaveProgress = {
       mainAddressId: null,
       altAddressId: null,

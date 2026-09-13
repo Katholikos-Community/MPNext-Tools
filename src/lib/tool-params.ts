@@ -1,5 +1,16 @@
-import { ToolService } from "@/services/toolService";
-
+/**
+ * Tool query-string types and pure helpers.
+ *
+ * This module is CLIENT-SAFE and must stay that way: client components import
+ * `ToolParams` and the `isNewRecord`/`isEditMode` helpers from here. It must
+ * therefore never import a service — `ToolService` pulls in
+ * `AuthorizationService`, `next/headers` and `MPHelper`, and Turbopack fails
+ * the build with "You're importing a module that depends on next/headers".
+ *
+ * A dynamic `import()` is NOT sufficient: it still creates a graph edge, so the
+ * server-only chain is still traced into the client bundle. The parser lives in
+ * `./tool-params.server` instead.
+ */
 export interface PageData {
   Page_ID: number;
   Display_Name: string;
@@ -25,66 +36,6 @@ export interface ToolParams {
   recordDescription?: string;
   addl?: string;
   pageData?: PageData;
-}
-
-/**
- * Parse a query-string value to a finite integer, or return `undefined`.
- *
- * Guards against `parseInt('abc', 10)` returning `NaN` — which would otherwise
- * leak as `typeof === 'number'` and silently corrupt downstream state (e.g.
- * `ToolService.getPageData(NaN)`, `===` checks, display as `"NaN"`).
- */
-function parseIntOrUndefined(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-export async function parseToolParams(searchParams: URLSearchParams | { [key: string]: string | string[] | undefined }): Promise<ToolParams> {
-  const getValue = (key: string): string | undefined => {
-    if (searchParams instanceof URLSearchParams) {
-      return searchParams.get(key) || undefined;
-    }
-    const value = searchParams[key];
-    return Array.isArray(value) ? value[0] : value;
-  };
-
-  const pageID = getValue('pageID');
-  const s = getValue('s');
-  const sc = getValue('sc');
-  const p = getValue('p');
-  const q = getValue('q');
-  const v = getValue('v');
-  const recordID = getValue('recordID');
-  const recordDescription = getValue('recordDescription');
-  const addl = getValue('addl');
-
-  const parsedPageID = parseIntOrUndefined(pageID);
-
-  // Fetch page data if pageID is provided
-  let pageData: PageData | undefined;
-  if (parsedPageID) {
-    try {
-      const toolService = await ToolService.getInstance();
-      pageData = await toolService.getPageData(parsedPageID) || undefined;
-    } catch {
-      console.warn('Could not fetch page data for pageID:', parsedPageID, '- Stored procedure may not exist yet');
-      pageData = undefined;
-    }
-  }
-
-  return {
-    pageID: parsedPageID,
-    s: parseIntOrUndefined(s),
-    sc: parseIntOrUndefined(sc),
-    p: parseIntOrUndefined(p),
-    q: q || undefined,
-    v: parseIntOrUndefined(v),
-    recordID: parseIntOrUndefined(recordID),
-    recordDescription: recordDescription ? decodeURIComponent(recordDescription) : undefined,
-    addl: addl || undefined,
-    pageData: pageData,
-  };
 }
 
 export function isNewRecord(params: ToolParams): boolean {

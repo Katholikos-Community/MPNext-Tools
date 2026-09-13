@@ -292,7 +292,7 @@ describe('HttpClient', () => {
       );
     });
 
-    it('should include response body in POST FormData error message', async () => {
+    it('does NOT leak the response body into the POST FormData error message', async () => {
       const formData = new FormData();
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -302,7 +302,7 @@ describe('HttpClient', () => {
       });
 
       await expect(httpClient.postFormData('/files', formData)).rejects.toThrow(
-        'POST /files failed: 400 Bad Request - File type not allowed'
+        'POST /files failed: 400 Bad Request'
       );
     });
   });
@@ -332,7 +332,7 @@ describe('HttpClient', () => {
       expect(result).toEqual([updatedRecord]);
     });
 
-    it('should include response body in thrown error message on failed PUT', async () => {
+    it('does NOT leak the response body into the thrown error message on failed PUT', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -342,9 +342,7 @@ describe('HttpClient', () => {
 
       await expect(
         httpClient.put('/tables/Contacts', { Invalid: 'data' })
-      ).rejects.toThrow(
-        'PUT /tables/Contacts failed: 400 Bad Request - Validation error: Field X is required'
-      );
+      ).rejects.toThrow('PUT /tables/Contacts failed: 400 Bad Request');
     });
 
     it('should omit body segment from PUT error message when body is empty', async () => {
@@ -403,7 +401,7 @@ describe('HttpClient', () => {
       );
     });
 
-    it('should include response body in PUT FormData error message', async () => {
+    it('does NOT leak the response body into the PUT FormData error message', async () => {
       const formData = new FormData();
       formData.append('file', new Blob(['bad']), 'fail.txt');
 
@@ -415,7 +413,7 @@ describe('HttpClient', () => {
       });
 
       await expect(httpClient.putFormData('/files/1', formData)).rejects.toThrow(
-        'PUT /files/1 failed: 422 Unprocessable Entity - Unsupported MIME type'
+        'PUT /files/1 failed: 422 Unprocessable Entity'
       );
     });
   });
@@ -455,7 +453,7 @@ describe('HttpClient', () => {
       );
     });
 
-    it('should include response body in DELETE error message', async () => {
+    it('does NOT leak the response body into the DELETE error message', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 409,
@@ -464,7 +462,7 @@ describe('HttpClient', () => {
       });
 
       await expect(httpClient.delete('/tables/Contacts', { id: [1] })).rejects.toThrow(
-        'DELETE /tables/Contacts failed: 409 Conflict - Record has dependent rows'
+        'DELETE /tables/Contacts failed: 409 Conflict'
       );
     });
   });
@@ -521,5 +519,92 @@ describe('HttpClient', () => {
       expect(result[0].Contact_ID).toBe(1);
       expect(result[0].Display_Name).toBe('Test');
     });
+  });
+});
+
+/**
+ * F5 — negative tests for PII leakage through the error path.
+ *
+ * A failed MP request's response body routinely echoes back record content
+ * (names, emails, notes) and the `$filter` string that produced it. A thrown
+ * message travels much further than a log line — into error reporters,
+ * client-visible action results, and every downstream log that stringifies the
+ * error — so the body must appear in NEITHER the log NOR the message.
+ *
+ * These assertions are the ones that survive the next refactor; the shape of
+ * the message is incidental, the absence of the body is the point.
+ */
+describe('HttpClient - error paths leak no record content', () => {
+  const SENSITIVE = "Jane Doe <jane.doe@example.org> — Notes: pastoral visit";
+  let httpClient: HttpClient;
+
+  function failWith(body: string, status = 400) {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status,
+      statusText: 'Bad Request',
+      text: () => Promise.resolve(body),
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockReset();
+    httpClient = new HttpClient('https://api.ministryplatform.com', () => 'token');
+  });
+
+  it('keeps the response body out of the thrown message', async () => {
+    failWith(SENSITIVE);
+
+    const err = await httpClient
+      .get('/tables/Contacts', { $filter: "Last_Name = 'Doe'" })
+      .catch((e: Error) => e);
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).not.toContain('Jane Doe');
+    expect((err as Error).message).not.toContain('jane.doe@example.org');
+    expect((err as Error).message).not.toContain('Notes');
+  });
+
+  it('keeps the query string — and therefore the $filter — out of the thrown message', async () => {
+    failWith('boom');
+
+    const err = await httpClient
+      .get('/tables/Contacts', { $filter: "Last_Name = 'Doe'" })
+      .catch((e: Error) => e);
+
+    expect((err as Error).message).not.toContain('$filter');
+    expect((err as Error).message).not.toContain('Last_Name');
+  });
+
+  it('keeps the response body out of the log', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    failWith(SENSITIVE);
+
+    await httpClient.get('/tables/Contacts', { $filter: "Last_Name = 'Doe'" }).catch(() => {});
+
+    const logged = JSON.stringify(errorSpy.mock.calls);
+    expect(logged).not.toContain('Jane Doe');
+    expect(logged).not.toContain('jane.doe@example.org');
+    expect(logged).not.toContain('$filter');
+    errorSpy.mockRestore();
+  });
+
+  it('still logs the identifiers an operator needs', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    failWith(SENSITIVE, 503);
+
+    await httpClient.get('/tables/Contacts').catch(() => {});
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[MP]',
+      'mp.request.failed',
+      expect.objectContaining({
+        method: 'GET',
+        endpoint: '/tables/Contacts',
+        status: 503,
+      }),
+    );
+    errorSpy.mockRestore();
   });
 });

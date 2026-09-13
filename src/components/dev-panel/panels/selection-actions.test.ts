@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockGetSession = vi.hoisted(() => vi.fn());
 const mockGetSelectionRecordIds = vi.hoisted(() => vi.fn());
-const mockGetUserIdByGuid = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/auth', () => ({
   auth: {
@@ -24,14 +23,6 @@ vi.mock('@/services/toolService', () => ({
   },
 }));
 
-vi.mock('@/services/userService', () => ({
-  UserService: {
-    getInstance: vi.fn().mockResolvedValue({
-      getUserIdByGuid: mockGetUserIdByGuid,
-    }),
-  },
-}));
-
 import { resolveSelection } from './selection-actions';
 
 const validSession = {
@@ -43,7 +34,6 @@ describe('resolveSelection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue(validSession);
-    mockGetUserIdByGuid.mockResolvedValue(42);
   });
 
   it('should resolve selection record IDs', async () => {
@@ -52,7 +42,11 @@ describe('resolveSelection', () => {
     const result = await resolveSelection(5, 292);
 
     expect(result).toEqual({ recordIds: [100, 200, 300], count: 3 });
-    expect(mockGetSelectionRecordIds).toHaveBeenCalledWith(5, 42, 292);
+    // No acting user id is passed from here: a selection belongs to a
+    // specific MP user, so the acting User_ID is resolved by the
+    // authorization gate inside the service instead of being supplied by
+    // the caller.
+    expect(mockGetSelectionRecordIds).toHaveBeenCalledWith(5, 292);
   });
 
   it('should return empty array when selection has no records', async () => {
@@ -69,15 +63,11 @@ describe('resolveSelection', () => {
     await expect(resolveSelection(5, 292)).rejects.toThrow('Unauthorized');
   });
 
-  it('should throw when userGuid is missing from session', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'ba-1' } });
+  it('propagates a refusal from the service-layer authorization gate', async () => {
+    // Resolving the acting user and refusing an unauthorized one are now the
+    // service's job, so this action simply must not swallow the refusal.
+    mockGetSelectionRecordIds.mockRejectedValue(new Error('Not authorized'));
 
-    await expect(resolveSelection(5, 292)).rejects.toThrow('User GUID not found in session');
-  });
-
-  it('should throw when MP user not found', async () => {
-    mockGetUserIdByGuid.mockRejectedValue(new Error('User not found'));
-
-    await expect(resolveSelection(5, 292)).rejects.toThrow('User not found');
+    await expect(resolveSelection(5, 292)).rejects.toThrow('Not authorized');
   });
 });

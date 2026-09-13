@@ -11,27 +11,36 @@ export class HttpClient {
     }
 
     /**
-     * Shared error-handling for non-2xx responses. Always attempts to read the
-     * response body (tolerating failure), logs with a consistent key, and throws
-     * an Error whose message includes status/statusText and the body when present.
+     * Shared error-handling for non-2xx responses.
      *
-     * All HTTP methods (GET/POST/POST FormData/PUT/PUT FormData/DELETE) route through
-     * this helper so callers get the same shape of error regardless of method.
+     * Logs and throws IDENTIFIERS AND SHAPE ONLY — method, endpoint, status,
+     * statusText. Deliberately NOT the response body and NOT the full URL:
+     *
+     *  - The body of a failed MP request routinely echoes back record content
+     *    (names, emails, notes) and the `$filter` string that produced it.
+     *  - `endpoint` is the path only; the query string carries the `$filter`.
+     *  - A thrown message propagates much further than a log line — into error
+     *    reporters, client-visible action results and, previously, into every
+     *    downstream log that stringified the error. Appending the body there
+     *    leaked it everywhere at once.
+     *
+     * All HTTP methods (GET/POST/POST FormData/PUT/PUT FormData/DELETE) route
+     * through this helper so callers get the same shape of error regardless of
+     * method.
      */
     private async handleFailedResponse(
         method: string,
         endpoint: string,
         response: Response
     ): Promise<never> {
-        const responseText = await response.text().catch(() => '');
-        logger.error(`${method} Request failed:`, {
+        logger.error('mp.request.failed', {
+            method,
+            endpoint,
             status: response.status,
             statusText: response.statusText,
-            endpoint,
-            responseBody: responseText,
         });
         throw new Error(
-            `${method} ${endpoint} failed: ${response.status} ${response.statusText}${responseText ? ` - ${responseText}` : ''}`
+            `${method} ${endpoint} failed: ${response.status} ${response.statusText}`
         );
     }
 
@@ -96,12 +105,6 @@ export class HttpClient {
     async put<T = unknown>(endpoint: string, body: RequestBody, queryParams?: QueryParams): Promise<T> {
         const url = this.buildUrl(endpoint, queryParams);
 
-        logger.debug("HTTP PUT Request:", {
-            url,
-            endpoint,
-            body: JSON.stringify(body, null, 2),
-            queryParams
-        });
 
         const response = await fetch(url, {
             method: 'PUT',

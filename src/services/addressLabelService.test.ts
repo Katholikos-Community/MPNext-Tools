@@ -11,6 +11,26 @@ vi.mock('@/lib/providers/ministry-platform', () => ({
   },
 }));
 
+/**
+ * The service gates every MP-touching method through AuthorizationService.
+ * Mock it so these tests exercise the service logic; the gate has its own
+ * tests in `authorizationService.test.ts`.
+ */
+const { mockRequireSecurityRole } = vi.hoisted(() => ({
+  mockRequireSecurityRole: vi.fn(async () => 42),
+}));
+
+vi.mock('@/services/authorizationService', () => ({
+  AuthorizationService: {
+    getInstance: () => ({
+      requireSecurityRole: mockRequireSecurityRole,
+      hasSecurityRole: vi.fn(async () => true),
+    }),
+  },
+  UnauthorizedError: class UnauthorizedError extends Error {},
+}));
+
+
 import { AddressLabelService } from './addressLabelService';
 
 describe('AddressLabelService', () => {

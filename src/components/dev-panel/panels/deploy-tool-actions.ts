@@ -8,7 +8,6 @@ import {
   type PageLookup,
   type RoleLookup,
 } from "@/services/toolService";
-import { getCurrentUserIdFromSession } from "@/components/shared-actions/user";
 
 export async function listPagesAction(search?: string): Promise<PageLookup[]> {
   await requireDevSession("Deploy Tool");
@@ -23,10 +22,11 @@ export async function listRolesAction(search?: string): Promise<RoleLookup[]> {
 }
 
 export async function deployToolAction(input: DeployToolInput): Promise<DeployToolResult> {
-  const session = await requireDevSession("Deploy Tool");
-  const userId = await getCurrentUserIdFromSession(session);
+  await requireDevSession("Deploy Tool");
   const toolService = await ToolService.getInstance();
-  return toolService.deployTool(input, userId);
+  // Write attribution comes from the authorization gate inside deployTool, so
+  // there is exactly one source for it.
+  return toolService.deployTool(input);
 }
 
 export interface DeployToolEnvStatus {

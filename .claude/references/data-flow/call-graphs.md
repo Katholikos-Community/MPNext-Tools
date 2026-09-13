@@ -23,7 +23,7 @@ last_verified: 2026-04-17
 7. `src/components/layout/auth-wrapper.tsx:6-7` — `await headers()` then `auth.api.getSession({ headers })`.
 8. `src/components/layout/auth-wrapper.tsx:9-17` — on no session: read `x-pathname`, build `/signin?callbackUrl=...`, `redirect(...)`.
 9. Browser lands on `src/app/signin/page.tsx:7` (`SignInContent`).
-10. `src/app/signin/page.tsx:25-28` — `authClient.signIn.oauth2({ providerId: "ministry-platform", callbackURL })` kicks off OAuth. See `../auth/oauth-flow.md`.
+10. `src/app/signin/sign-in-content.tsx` — `authClient.signIn.social({ provider: "ministryplatform", callbackURL })` kicks off OAuth. See `../auth/oauth-flow.md`.
 
 **Side effects:**
 - Request header set (internal): `x-pathname = <pathname + search>` (`src/proxy.ts:13`).
