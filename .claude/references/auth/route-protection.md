@@ -136,8 +136,8 @@ Mounted via:
 
 1. User hits `/tools/addresslabels?s=123&pageID=456`.
 2. Proxy: no cookie → 302 to `/signin?callbackUrl=/tools/addresslabels?s=123&pageID=456`.
-3. `/signin` page reads `callbackUrl` from `searchParams`, calls `authClient.signIn.oauth2({ providerId: "ministry-platform", callbackURL })`.
-4. After OIDC round-trip → `/api/auth/oauth2/callback/ministry-platform` → Better Auth redirects browser to `callbackURL`.
+3. `/signin` page reads `callbackUrl` from `searchParams`, **sanitizes it** (`sanitizeCallbackUrl` — it must be a path on this origin, never `//host` or `/\host`), then calls `authClient.signIn.social({ provider: "ministry-platform", callbackURL })`.
+4. After OIDC round-trip → `/api/auth/callback/ministry-platform` → Better Auth redirects browser to `callbackURL`.
 5. Request for `/tools/addresslabels?s=123&pageID=456` now has a session cookie; proxy passes through with `x-pathname` set.
 6. `AuthWrapper` confirms decoded session — if ever absent, falls back to `/signin?callbackUrl=<x-pathname value or "/">`.
 
